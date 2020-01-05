@@ -1,7 +1,7 @@
 use std::io::{ self, Write };
 use rlox_scanner::{ Scanner, ScannerError, Token };
 use rlox_parser::{ Parser, ParserError };
-use rlox_interpreter::{ RuntimeError as InterpreterError };
+use rlox_interpreter::{ Interpreter, RuntimeError as InterpreterError };
 
 #[derive(Debug)]
 enum ReplError {
@@ -14,6 +14,8 @@ fn main() {
     let stdin = io::stdin();
     let mut stdout = io::stdout();
 
+    let mut interpreter = Interpreter::new();
+
     loop {
         print!("lox> ");
         stdout.flush().unwrap();
@@ -21,14 +23,14 @@ fn main() {
         let mut buffer = String::new();
         stdin.read_line(&mut buffer).unwrap();
 
-        match run(&buffer) {
+        match run(&mut interpreter, &buffer) {
             Err(e) => eprintln!("{:?}", e),
             _ => { }
         }
     }
 }
 
-fn run(source: &String) -> Result<(), ReplError> {
+fn run(interpreter: &mut Interpreter, source: &String) -> Result<(), ReplError> {
     let scanner = Scanner::new(source);
     let mut tokens = Vec::new();
     for result in scanner.tokens() {
@@ -42,10 +44,13 @@ fn run(source: &String) -> Result<(), ReplError> {
     }
 
     let mut parser = Parser::new(tokens);
-    let expr = parser.parse().map_err(ReplError::Parser)?;
+    let statements = parser.parse();
 
-    let value = rlox_interpreter::evaluate_expression(&expr).map_err(ReplError::Interpreter)?;
-    println!("{}", value);
+    for result in statements {
+        let statement = result.map_err(ReplError::Parser)?;
+
+        interpreter.interpret(vec![statement]).map_err(ReplError::Interpreter)?;
+    }
 
     Ok(())
 }
