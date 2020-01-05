@@ -1,15 +1,16 @@
 use std::io::{ self, Write };
 use rlox_scanner::{ Scanner, ScannerError, Token };
 use rlox_parser::{ Parser, ParserError };
+use rlox_interpreter::{ RuntimeError as InterpreterError };
 
 #[derive(Debug)]
 enum ReplError {
     Scanner(ScannerError),
-    Parser(ParserError)
+    Parser(ParserError),
+    Interpreter(InterpreterError)
 }
 
 fn main() {
-
     let stdin = io::stdin();
     let mut stdout = io::stdout();
 
@@ -43,7 +44,8 @@ fn run(source: &String) -> Result<(), ReplError> {
     let mut parser = Parser::new(tokens);
     let expr = parser.parse().map_err(ReplError::Parser)?;
 
-    println!("{:?}", expr);
+    let value = rlox_interpreter::evaluate_expression(&expr).map_err(ReplError::Interpreter)?;
+    println!("{}", value);
 
     Ok(())
 }

@@ -41,3 +41,14 @@ impl Value {
         }
     }
 }
+
+impl ::std::fmt::Display for Value {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> Result<(), ::std::fmt::Error> {
+        match self {
+            Value::Nil => f.write_str("nil"),
+            Value::Boolean(value) => if *value { f.write_str("true") } else { f.write_str("false") },
+            Value::Number(value) => write!(f, "{}", value),
+            Value::String(value) => f.write_str(value),
+        }
+    }
+}
