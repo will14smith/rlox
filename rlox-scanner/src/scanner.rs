@@ -11,7 +11,6 @@ pub struct ScannerIterator<'a> {
     current: usize,
 
     line: u32,
-    line_offset: u32,
 }
 
 type ScanResult = Result<SourceToken, ScannerError>;
@@ -24,7 +23,6 @@ pub struct ScannerError {
     pub current: usize,
 
     pub line: u32,
-    pub line_offset: u32,
 }
 #[derive(Debug)]
 pub enum ScannerErrorType {
@@ -47,7 +45,6 @@ impl<'a> Scanner<'a> {
             current: 0,
 
             line: 1,
-            line_offset: 0,
         }
     }
 }
@@ -75,10 +72,16 @@ impl<'a> ScannerIterator<'a> {
             0x3B => self.token(Token::Semicolon),
             0x2A => self.token(Token::Star),
 
+            0x21 => if self.expect(0x3D) { self.token(Token::BangEqual) } else { self.token(Token::Bang) },
+            0x3D => if self.expect(0x3D) { self.token(Token::EqualEqual) } else { self.token(Token::Equal) },
+            0x3C => if self.expect(0x3D) { self.token(Token::LessEqual) } else { self.token(Token::Less) },
+            0x3E => if self.expect(0x3D) { self.token(Token::GreaterEqual) } else { self.token(Token::Greater) },
+
             _ => Err(self.error(ScannerErrorType::UnknownCharacter(c)))
         }
     }
 
+    // results
     fn token(&self, token: Token) -> ScanResult {
         let lexeme = ::std::str::from_utf8(&self.source[self.start..self.current])
             .map_err(|e| self.error(ScannerErrorType::Utf8Error(e)))?;
@@ -88,10 +91,8 @@ impl<'a> ScannerIterator<'a> {
             lexeme: lexeme.into(),
 
             line: self.line,
-            line_offset: self.line_offset
         })
     }
-
     fn error(&self, error: ScannerErrorType) -> ScannerError {
         ScannerError {
             error,
@@ -100,15 +101,28 @@ impl<'a> ScannerIterator<'a> {
             current: self.current,
 
             line: self.line,
-            line_offset: self.line_offset
         }
     }
 
+    // movement
     fn advance(&mut self) -> u8 {
         self.current += 1;
         self.source[self.current - 1]
     }
 
+    fn expect(&mut self, expected: u8) -> bool {
+        if self.is_at_end() {
+            return false;
+        }
+        if self.source[self.current] != expected {
+            return false;
+        }
+
+        self.current += 1;
+        return true;
+    }
+
+    // checks
     fn is_past_end(&self) -> bool {
         self.current > self.source.len()
     }
@@ -160,6 +174,26 @@ mod tests {
         assert_eq!(get_token("+", 0)?.token, Token::Plus);
         assert_eq!(get_token(";", 0)?.token, Token::Semicolon);
         assert_eq!(get_token("*", 0)?.token, Token::Star);
+
+        assert_eq!(get_token("!", 0)?.token, Token::Bang);
+        assert_eq!(get_token("=", 0)?.token, Token::Equal);
+        assert_eq!(get_token("<", 0)?.token, Token::Less);
+        assert_eq!(get_token(">", 0)?.token, Token::Greater);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_compound_char() -> Result<(), ScannerError> {
+        assert_eq!(get_token("!(", 0)?.token, Token::Bang);
+        assert_eq!(get_token("=(", 0)?.token, Token::Equal);
+        assert_eq!(get_token("<(", 0)?.token, Token::Less);
+        assert_eq!(get_token(">(", 0)?.token, Token::Greater);
+
+        assert_eq!(get_token("!=", 0)?.token, Token::BangEqual);
+        assert_eq!(get_token("==", 0)?.token, Token::EqualEqual);
+        assert_eq!(get_token("<=", 0)?.token, Token::LessEqual);
+        assert_eq!(get_token(">=", 0)?.token, Token::GreaterEqual);
 
         Ok(())
     }
