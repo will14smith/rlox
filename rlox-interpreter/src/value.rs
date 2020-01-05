@@ -8,19 +8,36 @@ pub enum Value {
 
 impl Value {
     pub fn as_number(&self) -> f64 {
-        match self {
-            Value::Number(value) => *value,
+        use Value::*;
 
-            Value::Boolean(_) | Value::String(_) | Value::Nil => unimplemented!("handle runtime error"),
+        match self {
+            Number(value) => *value,
+
+            Boolean(_) | String(_) | Nil => unimplemented!("handle runtime error"),
         }
     }
 
     pub fn is_truthy(&self) -> bool {
+        use Value::*;
+
         match self {
-            Value::Nil => false,
-            Value::Boolean(value) => *value,
-            Value::Number(_) => true,
-            Value::String(_) => true,
+            Nil => false,
+            Boolean(value) => *value,
+            Number(_) => true,
+            String(_) => true,
+        }
+    }
+
+    pub fn is_equal(&self, other: &Value) -> bool {
+        use Value::*;
+
+        match (self, other) {
+            (Nil, Nil) => true,
+            (Boolean(left), Boolean(right)) => *left == *right,
+            (Number(left), Number(right)) => *left == *right,
+            (String(left), String(right)) => *left == *right,
+
+            _ => false
         }
     }
 }

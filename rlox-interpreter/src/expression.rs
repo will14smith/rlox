@@ -37,6 +37,14 @@ pub fn evaluate(expr: &Expr) -> Value {
                 Token::Star => Value::Number(left.as_number() * right.as_number()),
                 Token::Slash => Value::Number(left.as_number() / right.as_number()),
 
+                Token::Greater => Value::Boolean(left.as_number() > right.as_number()),
+                Token::GreaterEqual => Value::Boolean(left.as_number() >= right.as_number()),
+                Token::Less => Value::Boolean(left.as_number() < right.as_number()),
+                Token::LessEqual => Value::Boolean(left.as_number() <= right.as_number()),
+
+                Token::BangEqual => Value::Boolean(!left.is_equal(&right)),
+                Token::EqualEqual => Value::Boolean(left.is_equal(&right)),
+
                 _ => panic!("Invalid binary operation {:?}", op.token)
             }
         },
@@ -90,11 +98,31 @@ mod tests {
         assert_eq!(evaluate(&Expr::Binary(Box::new(Expr::Number(8f64)), tok_to_src(Token::Slash), Box::new(Expr::Number(4f64)))), Value::Number(2f64));
 
         assert_eq!(evaluate(&Expr::Binary(Box::new(Expr::String("ab".into())), tok_to_src(Token::Plus), Box::new(Expr::String("cd".into())))), Value::String("abcd".into()));
+
+        fn test_comparison(token: Token, lt: bool, eq: bool, gt: bool) {
+            assert_eq!(evaluate(&Expr::Binary(Box::new(Expr::Number(4f64)), tok_to_src(token.clone()), Box::new(Expr::Number(8f64)))), Value::Boolean(lt));
+            assert_eq!(evaluate(&Expr::Binary(Box::new(Expr::Number(4f64)), tok_to_src(token.clone()), Box::new(Expr::Number(4f64)))), Value::Boolean(eq));
+            assert_eq!(evaluate(&Expr::Binary(Box::new(Expr::Number(8f64)), tok_to_src(token.clone()), Box::new(Expr::Number(4f64)))), Value::Boolean(gt));
+        }
+
+        test_comparison(Token::Greater, false, false, true);
+        test_comparison(Token::GreaterEqual, false, true, true);
+        test_comparison(Token::Less, true, false, false);
+        test_comparison(Token::LessEqual, true, true, false);
+
+        assert_eq!(evaluate(&Expr::Binary(Box::new(Expr::Number(4f64)), tok_to_src(Token::EqualEqual), Box::new(Expr::Number(4f64)))), Value::Boolean(true));
+        assert_eq!(evaluate(&Expr::Binary(Box::new(Expr::Number(4f64)), tok_to_src(Token::EqualEqual), Box::new(Expr::Number(8f64)))), Value::Boolean(false));
+        assert_eq!(evaluate(&Expr::Binary(Box::new(Expr::String("ab".into())), tok_to_src(Token::EqualEqual), Box::new(Expr::String("ab".into())))), Value::Boolean(true));
+        assert_eq!(evaluate(&Expr::Binary(Box::new(Expr::String("ab".into())), tok_to_src(Token::EqualEqual), Box::new(Expr::String("cd".into())))), Value::Boolean(false));
+        assert_eq!(evaluate(&Expr::Binary(Box::new(Expr::Boolean(true)), tok_to_src(Token::EqualEqual), Box::new(Expr::Boolean(true)))), Value::Boolean(true));
+        assert_eq!(evaluate(&Expr::Binary(Box::new(Expr::Boolean(true)), tok_to_src(Token::EqualEqual), Box::new(Expr::Boolean(false)))), Value::Boolean(false));
+        assert_eq!(evaluate(&Expr::Binary(Box::new(Expr::String("ab".into())), tok_to_src(Token::EqualEqual), Box::new(Expr::Number(4f64)))), Value::Boolean(false));
     }
 
     #[test]
     fn test_binary_runtime_error() {
         // TODO
-        // assert_eq!(evaluate(&Expr::Binary(Box::new(Expr::Number(8f64)), tok_to_src(Token::Minus), Box::new(Expr::String("cd".into())))), Value::Number(12f64));
+        // evaluate(&Expr::Binary(Box::new(Expr::Number(8f64)), tok_to_src(Token::Minus), Box::new(Expr::String("cd".into()))))
+        // evaluate(&Expr::Binary(Box::new(Expr::Number(8f64)), tok_to_src(Token::Greater), Box::new(Expr::String("cd".into()))))
     }
 }
