@@ -17,4 +17,5 @@ impl RuntimeError {
 pub enum RuntimeErrorDescription {
     ExpectedNumber,
     InvalidAdditionArguments(Value, Value),
+    DivideByZero,
 }

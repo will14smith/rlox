@@ -38,7 +38,16 @@ pub fn evaluate(expr: &Expr) -> EvaluateResult<Value> {
                 },
                 Token::Minus => Ok(Value::Number(cast_to_number(op, left)? - cast_to_number(op, right)?)),
                 Token::Star => Ok(Value::Number(cast_to_number(op, left)? * cast_to_number(op, right)?)),
-                Token::Slash => Ok(Value::Number(cast_to_number(op, left)? / cast_to_number(op, right)?)),
+                Token::Slash => {
+                    let left = cast_to_number(op, left)?;
+                    let right = cast_to_number(op, right)?;
+
+                    if right == 0f64 {
+                        Err(RuntimeError::new(op.clone(), RuntimeErrorDescription::DivideByZero))
+                    } else {
+                        Ok(Value::Number(left / right))
+                    }
+                },
 
                 Token::Greater => Ok(Value::Boolean(cast_to_number(op, left)? > cast_to_number(op, right)?)),
                 Token::GreaterEqual => Ok(Value::Boolean(cast_to_number(op, left)? >= cast_to_number(op, right)?)),
@@ -137,6 +146,9 @@ mod tests {
         assert!(result.is_err());
 
         let result = evaluate(&Expr::Binary(Box::new(Expr::Number(8f64)), tok_to_src(Token::Greater), Box::new(Expr::String("cd".into()))));
+        assert!(result.is_err());
+
+        let result = evaluate(&Expr::Binary(Box::new(Expr::Number(8f64)), tok_to_src(Token::Slash), Box::new(Expr::Number(0f64))));
         assert!(result.is_err());
     }
 }
