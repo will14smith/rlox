@@ -13,7 +13,10 @@ fn main() {
         let mut buffer = String::new();
         stdin.read_line(&mut buffer).unwrap();
 
-        run(&buffer).expect("Failed to run line");
+        match run(&buffer) {
+            Err(e) => eprintln!("{:?}", e),
+            _ => { }
+        }
     }
 }
 
