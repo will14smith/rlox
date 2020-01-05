@@ -230,7 +230,7 @@ impl<'a> ScannerIterator<'a> {
 }
 
 fn is_digit(v: u8) -> bool {
-    match v { 0x30..=0x57 => true, _ => false }
+    match v { 0x30..=0x39 => true, _ => false }
 }
 fn is_alpha(v: u8) -> bool {
     match v { 0x41..=0x5A | 0x5F | 0x61..=0x7A => true, _ => false }
