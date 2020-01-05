@@ -31,7 +31,8 @@ pub fn evaluate(expr: &Expr) -> EvaluateResult<Value> {
             match &op.token {
                 Token::Plus => match (left, right) {
                     (Value::Number(left), Value::Number(right)) => Ok(Value::Number(left + right)),
-                    (Value::String(left), Value::String(right)) => Ok(Value::String(left + &right)),
+                    (Value::String(left), right) => Ok(Value::String(left + &right.to_string())),
+                    (left, Value::String(right)) => Ok(Value::String(left.to_string() + &right)),
 
                     (left, right) => Err(RuntimeError::new(op.clone(), RuntimeErrorDescription::InvalidAdditionArguments(left, right)))
                 },
@@ -107,6 +108,8 @@ mod tests {
         assert_eq!(evaluate_expect(&Expr::Binary(Box::new(Expr::Number(8f64)), tok_to_src(Token::Slash), Box::new(Expr::Number(4f64)))), Value::Number(2f64));
 
         assert_eq!(evaluate_expect(&Expr::Binary(Box::new(Expr::String("ab".into())), tok_to_src(Token::Plus), Box::new(Expr::String("cd".into())))), Value::String("abcd".into()));
+        assert_eq!(evaluate_expect(&Expr::Binary(Box::new(Expr::String("ab".into())), tok_to_src(Token::Plus), Box::new(Expr::Number(34f64)))), Value::String("ab34".into()));
+        assert_eq!(evaluate_expect(&Expr::Binary(Box::new(Expr::Number(12f64)), tok_to_src(Token::Plus), Box::new(Expr::String("cd".into())))), Value::String("12cd".into()));
 
         fn test_comparison(token: Token, lt: bool, eq: bool, gt: bool) {
             assert_eq!(evaluate_expect(&Expr::Binary(Box::new(Expr::Number(4f64)), tok_to_src(token.clone()), Box::new(Expr::Number(8f64)))), Value::Boolean(lt));
