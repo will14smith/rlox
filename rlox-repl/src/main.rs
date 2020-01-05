@@ -1,5 +1,12 @@
 use std::io::{ self, Write };
-use rlox_scanner::{ Scanner, ScannerError };
+use rlox_scanner::{ Scanner, ScannerError, Token };
+use rlox_parser::{ Parser, ParserError };
+
+#[derive(Debug)]
+enum ReplError {
+    Scanner(ScannerError),
+    Parser(ParserError)
+}
 
 fn main() {
 
@@ -20,15 +27,23 @@ fn main() {
     }
 }
 
-fn run(source: &String) -> Result<(), ScannerError> {
+fn run(source: &String) -> Result<(), ReplError> {
     let scanner = Scanner::new(source);
-    let tokens = scanner.tokens();
+    let mut tokens = Vec::new();
+    for result in scanner.tokens() {
+        let token = result.map_err(ReplError::Scanner)?;
 
-    for token in tokens {
-        let token = token?;
+        match &token.token {
+            Token::NewLine | Token::Whitespace => { }
 
-        println!("{:?}", token);
+            _ => tokens.push(token),
+        }
     }
+
+    let mut parser = Parser::new(tokens);
+    let expr = parser.parse().map_err(ReplError::Parser)?;
+
+    println!("{:?}", expr);
 
     Ok(())
 }

@@ -6,3 +6,4 @@ edition = "2018"
 
 [dependencies]
 rlox-scanner = { path = "../rlox-scanner" }
+rlox-parser = { path = "../rlox-parser" }
