@@ -77,6 +77,25 @@ impl<'a> ScannerIterator<'a> {
             0x3C => if self.expect(0x3D) { self.token(Token::LessEqual) } else { self.token(Token::Less) },
             0x3E => if self.expect(0x3D) { self.token(Token::GreaterEqual) } else { self.token(Token::Greater) },
 
+            0x2F => {
+                if self.expect(0x2F) {
+                    while self.peek() != 0x0A && !self.is_at_end() { self.advance(); }
+                    self.token(Token::Comment)
+                } else {
+                    self.token(Token::Slash)
+                }
+            }
+
+            0x09 | 0x0D | 0x20 => {
+                self.token(Token::Whitespace)
+            }
+
+            0x0A => {
+                let token = self.token(Token::NewLine);
+                self.line += 1;
+                token
+            }
+
             _ => Err(self.error(ScannerErrorType::UnknownCharacter(c)))
         }
     }
@@ -105,6 +124,14 @@ impl<'a> ScannerIterator<'a> {
     }
 
     // movement
+    fn peek(&self) -> u8 {
+        if self.is_at_end() {
+            0
+        } else {
+            self.source[self.current]
+        }
+    }
+
     fn advance(&mut self) -> u8 {
         self.current += 1;
         self.source[self.current - 1]
@@ -180,6 +207,8 @@ mod tests {
         assert_eq!(get_token("<", 0)?.token, Token::Less);
         assert_eq!(get_token(">", 0)?.token, Token::Greater);
 
+        assert_eq!(get_token("/", 0)?.token, Token::Slash);
+
         Ok(())
     }
 
@@ -199,6 +228,26 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_comment() -> Result<(), ScannerError> {
+        assert_eq!(get_token("/(", 0)?.token, Token::Slash);
+
+        assert_eq!(get_token("// hello", 0)?.token, Token::Comment);
+        assert_eq!(get_token("/// hello", 0)?.token, Token::Comment);
+        assert_eq!(get_token("// hello\n/", 2)?.token, Token::Slash);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_new_line() -> Result<(), ScannerError> {
+        assert_eq!(get_token("+\n+", 0)?.line, 1);
+        assert_eq!(get_token("+\n+", 1)?.line, 1);
+        assert_eq!(get_token("+\n+", 2)?.line, 2);
+
+        Ok(())
+    }
+
+        #[test]
     fn test_parse_eof() -> Result<(), ScannerError> {
         assert_eq!(get_token("(+)", 3)?.token, Token::Eof);
 
