@@ -2,7 +2,6 @@ use std::io::{ self, Write };
 use rlox_scanner::{ Scanner, ScannerError };
 
 fn main() {
-    let mut buffer = String::new();
 
     let stdin = io::stdin();
     let mut stdout = io::stdout();
@@ -10,6 +9,8 @@ fn main() {
     loop {
         print!("lox> ");
         stdout.flush().unwrap();
+
+        let mut buffer = String::new();
         stdin.read_line(&mut buffer).unwrap();
 
         run(&buffer).expect("Failed to run line");
