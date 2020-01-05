@@ -7,13 +7,13 @@ pub enum Value {
 }
 
 impl Value {
-    pub fn as_number(&self) -> f64 {
+    pub fn as_number(&self) -> Result<f64, ()> {
         use Value::*;
 
         match self {
-            Number(value) => *value,
+            Number(value) => Ok(*value),
 
-            Boolean(_) | String(_) | Nil => unimplemented!("handle runtime error"),
+            Boolean(_) | String(_) | Nil => Err(()),
         }
     }
 
