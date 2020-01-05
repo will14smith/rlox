@@ -1,0 +1,6 @@
+[workspace]
+
+members = [
+    "rlox-repl",
+    "rlox-scanner"
+]
