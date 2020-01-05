@@ -28,7 +28,8 @@ pub struct ScannerError {
 pub enum ScannerErrorType {
     UnknownCharacter(u8),
     Utf8Error(::std::str::Utf8Error),
-    UnterminatedString
+    UnterminatedString,
+    InvalidNumber(::std::num::ParseFloatError)
 }
 
 impl<'a> Scanner<'a> {
@@ -99,6 +100,8 @@ impl<'a> ScannerIterator<'a> {
 
             0x22 => self.string(),
 
+            0x30..=0x39 => self.number(),
+
             _ => Err(self.error(ScannerErrorType::UnknownCharacter(c)))
         }
     }
@@ -122,6 +125,27 @@ impl<'a> ScannerIterator<'a> {
             self.token(Token::String(value.into()))
         }
     }
+
+     fn number(&mut self) -> ScanResult {
+         while is_digit(self.peek()) {
+             self.advance();
+         }
+
+         if self.peek() == 0x2E && is_digit(self.peek_next()) {
+             // consume .
+             self.advance();
+
+             while is_digit(self.peek()) {
+                 self.advance();
+             }
+         }
+
+         let str_value = self.slice_source(self.start..self.current)?;
+         let value = str_value.parse::<f64>()
+             .map_err(|e| self.error(ScannerErrorType::InvalidNumber(e)))?;
+
+         self.token(Token::Number(value))
+     }
 
     // results
     fn token(&self, token: Token) -> ScanResult {
@@ -151,6 +175,13 @@ impl<'a> ScannerIterator<'a> {
             0
         } else {
             self.source[self.current]
+        }
+    }
+    fn peek_next(&self) -> u8 {
+        if self.current + 1 >= self.source.len()  {
+            0
+        } else {
+            self.source[self.current + 1]
         }
     }
 
@@ -184,6 +215,10 @@ impl<'a> ScannerIterator<'a> {
     fn is_at_end(&self) -> bool {
         self.current >= self.source.len()
     }
+}
+
+fn is_digit(v: u8) -> bool {
+    match v { 0x30..=0x57 => true, _ => false }
 }
 
 impl<'a> Iterator for ScannerIterator<'a> {
@@ -276,6 +311,15 @@ mod tests {
         assert_eq!(get_token("\"\"", 0)?.token, Token::String("".into()));
         assert_eq!(get_token("\"abc\"", 0)?.token, Token::String("abc".into()));
         assert_eq!(get_token("\"ab\nc\"", 0)?.token, Token::String("ab\nc".into()));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_number() -> Result<(), ScannerError> {
+        assert_eq!(get_token("1", 0)?.token, Token::Number(1f64));
+        assert_eq!(get_token("12", 0)?.token, Token::Number(12f64));
+        assert_eq!(get_token("12.34", 0)?.token, Token::Number(12.34f64));
 
         Ok(())
     }
