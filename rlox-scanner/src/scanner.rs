@@ -59,7 +59,6 @@ impl<'a> ScannerIterator<'a> {
             return token
         }
 
-
         let c = self.advance();
 
         match c {
@@ -101,6 +100,8 @@ impl<'a> ScannerIterator<'a> {
             0x22 => self.string(),
 
             0x30..=0x39 => self.number(),
+
+            0x41..=0x5A | 0x5F | 0x61..=0x7A => self.identifier(),
 
             _ => Err(self.error(ScannerErrorType::UnknownCharacter(c)))
         }
@@ -146,6 +147,17 @@ impl<'a> ScannerIterator<'a> {
 
          self.token(Token::Number(value))
      }
+
+    fn identifier(&mut self) -> ScanResult {
+        while is_alphanumeric(self.peek()) {
+            self.advance();
+        }
+
+        let value = self.slice_source(self.start..self.current)?;
+        match identifier_to_keyword(value) {
+            Some(token) => self.token(token),
+            None => self.token(Token::Identifier(value.into()))
+        }    }
 
     // results
     fn token(&self, token: Token) -> ScanResult {
@@ -219,6 +231,35 @@ impl<'a> ScannerIterator<'a> {
 
 fn is_digit(v: u8) -> bool {
     match v { 0x30..=0x57 => true, _ => false }
+}
+fn is_alpha(v: u8) -> bool {
+    match v { 0x41..=0x5A | 0x5F | 0x61..=0x7A => true, _ => false }
+}
+fn is_alphanumeric(v: u8) -> bool {
+    is_alpha(v) || is_digit(v)
+}
+
+fn identifier_to_keyword(identifier: &str) -> Option<Token> {
+    match identifier {
+        "and" => Some(Token::And),
+        "class" => Some(Token::Class),
+        "else" => Some(Token::Else),
+        "false" => Some(Token::False),
+        "for" => Some(Token::For),
+        "fun" => Some(Token::Fun),
+        "if" => Some(Token::If),
+        "nil" => Some(Token::Nil),
+        "or" => Some(Token::Or),
+        "print" => Some(Token::Print),
+        "return" => Some(Token::Return),
+        "super" => Some(Token::Super),
+        "this" => Some(Token::This),
+        "true" => Some(Token::True),
+        "var" => Some(Token::Var),
+        "while" => Some(Token::While),
+
+        _ => None
+    }
 }
 
 impl<'a> Iterator for ScannerIterator<'a> {
@@ -320,6 +361,38 @@ mod tests {
         assert_eq!(get_token("1", 0)?.token, Token::Number(1f64));
         assert_eq!(get_token("12", 0)?.token, Token::Number(12f64));
         assert_eq!(get_token("12.34", 0)?.token, Token::Number(12.34f64));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_identifier() -> Result<(), ScannerError> {
+        assert_eq!(get_token("a", 0)?.token, Token::Identifier("a".into()));
+        assert_eq!(get_token("_", 0)?.token, Token::Identifier("_".into()));
+        assert_eq!(get_token("_a", 0)?.token, Token::Identifier("_a".into()));
+        assert_eq!(get_token("_0", 0)?.token, Token::Identifier("_0".into()));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_keyword() -> Result<(), ScannerError> {
+        assert_eq!(get_token("and", 0)?.token, Token::And);
+        assert_eq!(get_token("class", 0)?.token, Token::Class);
+        assert_eq!(get_token("else", 0)?.token, Token::Else);
+        assert_eq!(get_token("false", 0)?.token, Token::False);
+        assert_eq!(get_token("for", 0)?.token, Token::For);
+        assert_eq!(get_token("fun", 0)?.token, Token::Fun);
+        assert_eq!(get_token("if", 0)?.token, Token::If);
+        assert_eq!(get_token("nil", 0)?.token, Token::Nil);
+        assert_eq!(get_token("or", 0)?.token, Token::Or);
+        assert_eq!(get_token("print", 0)?.token, Token::Print);
+        assert_eq!(get_token("return", 0)?.token, Token::Return);
+        assert_eq!(get_token("super", 0)?.token, Token::Super);
+        assert_eq!(get_token("this", 0)?.token, Token::This);
+        assert_eq!(get_token("true", 0)?.token, Token::True);
+        assert_eq!(get_token("var", 0)?.token, Token::Var);
+        assert_eq!(get_token("while", 0)?.token, Token::While);
 
         Ok(())
     }
