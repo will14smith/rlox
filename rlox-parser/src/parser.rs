@@ -1,5 +1,5 @@
 use rlox_scanner::{ SourceToken, Token };
-use crate::Expr;
+use crate::{ Expr, Stmt };
 
 pub struct Parser {
     tokens: Vec<SourceToken>,
@@ -30,8 +30,40 @@ impl Parser {
         }
     }
 
-    pub fn parse(&mut self) -> ParserResult<Expr> {
-        self.expression()
+    pub fn parse(&mut self) -> Vec<ParserResult<Stmt>> {
+        let mut statements = Vec::new();
+
+        while !self.is_at_end() {
+            statements.push(self.statement());
+        }
+
+        statements
+    }
+
+    // statements
+    fn statement(&mut self) -> ParserResult<Stmt> {
+        if self.expect(Token::Print) {
+            self.print_statement()
+        } else {
+            self.expression_statement()
+        }
+    }
+
+    fn print_statement(&mut self) -> ParserResult<Stmt> {
+        // print keyword is already consumed
+        let value = self.expression()?;
+
+        self.consume(Token::Semicolon, ParserErrorDescription::ExpectedToken(Token::Semicolon, "Expected ';' after value".into()))?;
+
+        Ok(Stmt::Print(value))
+    }
+
+    fn expression_statement(&mut self) -> ParserResult<Stmt> {
+        let value = self.expression()?;
+
+        self.consume(Token::Semicolon, ParserErrorDescription::ExpectedToken(Token::Semicolon, "Expected ';' after value".into()))?;
+
+        Ok(Stmt::Expression(value))
     }
 
     // expressions
@@ -216,6 +248,19 @@ impl Parser {
 mod tests {
     use super::*;
 
+    fn parse_statement(tokens: Vec<Token>) -> ParserResult<Stmt> {
+        let mut source_tokens: Vec<SourceToken> = tokens.into_iter()
+            .map(tok_to_src)
+            .collect();
+        source_tokens.push(tok_to_src(Token::Eof));
+
+        let mut parser = Parser::new(source_tokens);
+        parser.statement()
+    }
+    fn expect_parse_statement(tokens: Vec<Token>) -> Stmt {
+        parse_statement(tokens).expect("Failed to parse statement")
+    }
+
     fn parse_expression(tokens: Vec<Token>) -> ParserResult<Expr> {
         let mut source_tokens: Vec<SourceToken> = tokens.into_iter()
             .map(tok_to_src)
@@ -235,6 +280,16 @@ mod tests {
             lexeme: String::new(),
             line: 0
         }
+    }
+
+    #[test]
+    fn test_print() {
+        assert_eq!(expect_parse_statement(vec![Token::Print, Token::Number(123f64), Token::Semicolon]), Stmt::Print(Expr::Number(123f64)));
+    }
+
+    #[test]
+    fn test_expression_statement() {
+        assert_eq!(expect_parse_statement(vec![Token::Number(123f64), Token::Semicolon]), Stmt::Expression(Expr::Number(123f64)));
     }
 
     #[test]
