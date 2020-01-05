@@ -3,7 +3,6 @@ use crate::Expr;
 
 pub struct Parser {
     tokens: Vec<SourceToken>,
-    fallback_eof: SourceToken,
 
     current: usize,
 }
@@ -26,11 +25,6 @@ impl Parser {
     pub fn new(tokens: Vec<SourceToken>) -> Parser {
         Parser {
             tokens,
-            fallback_eof: SourceToken {
-                token: Token::Eof,
-                lexeme: String::new(),
-                line: 0
-            },
 
             current: 0,
         }
@@ -120,6 +114,10 @@ impl Parser {
             Token::String(val) => Ok(Expr::String(val.clone())),
 
             Token::LeftParen => {
+                if self.is_at_end() {
+                    return Err(self.error(self.peek(), ParserErrorDescription::ExpectedExpression));
+                }
+
                 let expr = self.expression()?;
                 self.consume(Token::RightParen, ParserErrorDescription::ExpectedToken(Token::RightParen, "Expected ')' after expression".into()))?;
 
@@ -205,10 +203,6 @@ impl Parser {
     }
 
     fn peek(&self) -> &SourceToken {
-        if self.current >= self.tokens.len() {
-            return &self.fallback_eof;
-        }
-
         self.tokens.get(self.current).unwrap()
     }
 
@@ -223,9 +217,10 @@ mod tests {
     use super::*;
 
     fn parse_expression(tokens: Vec<Token>) -> ParserResult<Expr> {
-        let source_tokens = tokens.into_iter()
+        let mut source_tokens: Vec<SourceToken> = tokens.into_iter()
             .map(tok_to_src)
             .collect();
+        source_tokens.push(tok_to_src(Token::Eof));
 
         let mut parser = Parser::new(source_tokens);
         parser.expression()
@@ -277,6 +272,9 @@ mod tests {
     #[test]
     fn test_error() {
         let result = parse_expression(vec![Token::LeftParen, Token::False]);
+        assert!(result.is_err());
+
+        let result = parse_expression(vec![Token::LeftParen]);
         assert!(result.is_err());
     }
 }
