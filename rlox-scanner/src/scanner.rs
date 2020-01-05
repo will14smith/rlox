@@ -24,10 +24,11 @@ pub struct ScannerError {
 
     pub line: u32,
 }
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ScannerErrorType {
     UnknownCharacter(u8),
-    Utf8Error(::std::str::Utf8Error)
+    Utf8Error(::std::str::Utf8Error),
+    UnterminatedString
 }
 
 impl<'a> Scanner<'a> {
@@ -96,14 +97,35 @@ impl<'a> ScannerIterator<'a> {
                 token
             }
 
+            0x22 => self.string(),
+
             _ => Err(self.error(ScannerErrorType::UnknownCharacter(c)))
+        }
+    }
+
+    // tokens
+    fn string(&mut self) -> ScanResult {
+        // already consumed the opening "
+
+        while self.peek() != 0x22 && !self.is_at_end() {
+            if self.peek() == 0x0A { self.line += 1 }
+            self.advance();
+        }
+
+        if self.is_at_end() {
+            Err(self.error(ScannerErrorType::UnterminatedString))
+        } else {
+            // consume the closing "
+            self.advance();
+
+            let value = self.slice_source(self.start+1..self.current-1)?;
+            self.token(Token::String(value.into()))
         }
     }
 
     // results
     fn token(&self, token: Token) -> ScanResult {
-        let lexeme = ::std::str::from_utf8(&self.source[self.start..self.current])
-            .map_err(|e| self.error(ScannerErrorType::Utf8Error(e)))?;
+        let lexeme = self.slice_source(self.start..self.current)?;
 
         Ok(SourceToken {
             token,
@@ -149,6 +171,11 @@ impl<'a> ScannerIterator<'a> {
         return true;
     }
 
+    fn slice_source(&self, range: ::std::ops::Range<usize>) -> Result<&str, ScannerError> {
+        ::std::str::from_utf8(&self.source[range])
+            .map_err(|e| self.error(ScannerErrorType::Utf8Error(e)))
+    }
+
     // checks
     fn is_past_end(&self) -> bool {
         self.current > self.source.len()
@@ -187,6 +214,12 @@ mod tests {
         let mut tokens = parse(source);
         assert!(index < tokens.len(), "Tried to get token at index {} but there was only {} tokens", index, tokens.len());
         tokens.remove(index)
+    }
+
+    fn assert_error(result: ScanResult, expected: ScannerErrorType) {
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().error, expected)
+
     }
 
     #[test]
@@ -239,6 +272,15 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_string() -> Result<(), ScannerError> {
+        assert_eq!(get_token("\"\"", 0)?.token, Token::String("".into()));
+        assert_eq!(get_token("\"abc\"", 0)?.token, Token::String("abc".into()));
+        assert_eq!(get_token("\"ab\nc\"", 0)?.token, Token::String("ab\nc".into()));
+
+        Ok(())
+    }
+
+    #[test]
     fn test_parse_new_line() -> Result<(), ScannerError> {
         assert_eq!(get_token("+\n+", 0)?.line, 1);
         assert_eq!(get_token("+\n+", 1)?.line, 1);
@@ -257,6 +299,12 @@ mod tests {
     #[test]
     fn test_parse_invalid_char() {
         let result = get_token("@", 0);
-        assert!(result.is_err());
+        assert_error(result, ScannerErrorType::UnknownCharacter(0x40));
+    }
+
+    #[test]
+    fn test_parse_unterminated_string() {
+        let result = get_token("\"abc", 0);
+        assert_error(result, ScannerErrorType::UnterminatedString);
     }
 }
