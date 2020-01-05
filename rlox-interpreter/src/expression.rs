@@ -18,7 +18,7 @@ pub fn evaluate(environment: &mut Environment, expr: &Expr) -> EvaluateResult<Va
         Expr::Var(name) => {
             let value = environment.get(name)?;
 
-            Ok(value.clone())
+            Ok((*value).clone())
         },
 
         Expr::Grouping(expr) => evaluate(environment, expr),
@@ -181,7 +181,7 @@ mod tests {
     fn test_assign() {
         let mut environment = Environment::new();
         environment.define("a".into(), Value::Nil);
-        
+
         let a = tok_to_src(Token::Identifier("a".into()));
         evaluate(&mut environment, &Expr::Assign(a.clone(), Box::new(Expr::Boolean(true)))).unwrap();
 

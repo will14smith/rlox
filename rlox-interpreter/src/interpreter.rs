@@ -1,4 +1,8 @@
-use std::collections::HashMap;
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    rc::Rc,
+};
 use rlox_scanner::{ SourceToken, Token };
 use rlox_parser::Stmt;
 use crate::{
@@ -31,36 +35,54 @@ impl Interpreter {
 
 #[derive(Debug)]
 pub struct Environment {
-    values: HashMap<String, Value>,
+    parent: Option<Rc<RefCell<Environment>>>,
+    values: HashMap<String, Rc<Value>>,
 }
 
 impl Environment {
     pub fn new() -> Environment {
         Environment {
+            parent: None,
             values: HashMap::new(),
         }
     }
 
-    pub fn get(&self, token: &SourceToken) -> EvaluateResult<&Value> {
+    pub fn get(&self, token: &SourceToken) -> EvaluateResult<Rc<Value>> {
         match self.values.get(Self::get_identifier_name(token)) {
-            Some(value) => Ok(value),
-            None => Err(RuntimeError::new(token.clone(), RuntimeErrorDescription::UndefinedVariable)),
+            Some(value) => Ok(Rc::clone(value)),
+            None => {
+                match &self.parent {
+                    Some(parent) => {
+                        let env = parent.borrow();
+
+                        env.get(token)
+                    },
+                    None => Err(RuntimeError::new(token.clone(), RuntimeErrorDescription::UndefinedVariable))
+                }
+            },
         }
     }
 
     pub fn define(&mut self, name: String, value: Value) {
-        self.values.insert(name, value);
+        self.values.insert(name, Rc::new(value));
     }
 
     pub fn assign(&mut self, token: &SourceToken, value: Value) -> EvaluateResult<()> {
         let name = Self::get_identifier_name(token);
 
         if self.values.contains_key(name) {
-            self.values.insert(name.clone(), value);
+            self.values.insert(name.clone(), Rc::new(value));
 
             Ok(())
         } else {
-            Err(RuntimeError::new(token.clone(), RuntimeErrorDescription::UndefinedVariable))
+            match &self.parent {
+                Some(parent) => {
+                    let mut env = parent.borrow_mut();
+
+                    env.assign(token, value)
+                },
+                None => Err(RuntimeError::new(token.clone(), RuntimeErrorDescription::UndefinedVariable))
+            }
         }
     }
 
