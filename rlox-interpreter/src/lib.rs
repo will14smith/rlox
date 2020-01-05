@@ -1,7 +1,6 @@
 mod error;
 mod expression;
 mod interpreter;
-mod stmt;
 mod value;
 
 pub use error::{ RuntimeError, RuntimeErrorDescription };

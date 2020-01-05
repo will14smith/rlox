@@ -81,6 +81,8 @@ impl Parser {
     fn statement(&mut self) -> ParserResult<Stmt> {
         if self.try_consume(Token::Print) {
             self.print_statement()
+        } else if self.try_consume(Token::LeftBrace) {
+            Ok(Stmt::Block(self.block()?))
         } else {
             self.expression_statement()
         }
@@ -93,6 +95,19 @@ impl Parser {
         self.consume(Token::Semicolon, ParserErrorDescription::ExpectedToken(Token::Semicolon, "Expected ';' after value".into()))?;
 
         Ok(Stmt::Print(value))
+    }
+
+    fn block(&mut self) -> ParserResult<Vec<Stmt>> {
+        // left brace is already consumed
+        let mut statements = Vec::new();
+
+        while !self.check(Token::RightBrace) && !self.is_at_end() {
+            statements.push(self.declaration()?);
+        }
+
+        self.consume(Token::RightBrace, ParserErrorDescription::ExpectedToken(Token::RightBrace, "Expected '}' after block".into()))?;
+
+        Ok(statements)
     }
 
     fn expression_statement(&mut self) -> ParserResult<Stmt> {
@@ -288,6 +303,9 @@ impl Parser {
     }
 
     // checks
+    fn check(&self, token: Token) -> bool {
+        self.check_discriminant(::std::mem::discriminant(&token))
+    }
     fn check_discriminant(&self, token: Discriminant<Token>) -> bool {
         if self.is_at_end() {
             false

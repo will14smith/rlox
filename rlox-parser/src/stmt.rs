@@ -5,5 +5,6 @@ use crate::Expr;
 pub enum Stmt {
     Expression(Expr),
     Print(Expr),
-    Var(SourceToken, Option<Expr>)
+    Var(SourceToken, Option<Expr>),
+    Block(Vec<Stmt>),
 }

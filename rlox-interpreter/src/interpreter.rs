@@ -7,28 +7,76 @@ use rlox_scanner::{ SourceToken, Token };
 use rlox_parser::Stmt;
 use crate::{
     EvaluateResult,
-    stmt::evaluate as evaluate_stmt,
     Value,
     RuntimeError,
     RuntimeErrorDescription
 };
+use crate::expression::evaluate;
 
 pub struct Interpreter {
-    environment: Environment,
+    environment: Rc<RefCell<Environment>>,
 }
 
 impl Interpreter {
     pub fn new() -> Interpreter {
         Interpreter {
-            environment: Environment::new(),
+            environment: Rc::new(RefCell::new(Environment::new())),
         }
     }
 
     pub fn interpret(&mut self, statements: Vec<Stmt>) -> EvaluateResult<()> {
         for statement in statements {
-            evaluate_stmt(&mut self.environment, &statement)?;
+            self.evaluate_stmt(&statement)?;
         }
 
+        Ok(())
+    }
+
+    fn evaluate_stmt(&mut self, stmt: &Stmt) -> EvaluateResult<()> {
+        match stmt {
+            Stmt::Expression(expr) => {
+                evaluate(&mut self.environment.borrow_mut(), expr)?;
+
+                Ok(())
+            },
+            Stmt::Print(expr) => {
+                let value = evaluate(&mut self.environment.borrow_mut(), expr)?;
+                println!("{}", value);
+
+                Ok(())
+            },
+            Stmt::Var(name, initializer) => {
+                let value = match initializer {
+                    Some(expr) => evaluate(&mut self.environment.borrow_mut(), expr)?,
+                    None => Value::Nil,
+                };
+
+                self.environment.borrow_mut().define(name.lexeme.clone(), value);
+
+                Ok(())
+            },
+            Stmt::Block(statements) => {
+                let environment= Rc::new(RefCell::new(Environment::new_with_parent(Rc::clone(&self.environment))));
+
+                self.evaluate_block(statements, environment)
+            }
+        }
+    }
+
+    fn evaluate_block(&mut self, statements: &Vec<Stmt>, mut environment: Rc<RefCell<Environment>>) -> EvaluateResult<()> {
+        ::std::mem::swap(&mut self.environment, &mut environment);
+
+        for statement in statements {
+            match self.evaluate_stmt(statement) {
+                Ok(()) => { }
+                Err(err) => {
+                    ::std::mem::swap(&mut self.environment, &mut environment);
+                    return Err(err);
+                }
+            }
+        }
+
+        ::std::mem::swap(&mut self.environment, &mut environment);
         Ok(())
     }
 }
@@ -43,6 +91,13 @@ impl Environment {
     pub fn new() -> Environment {
         Environment {
             parent: None,
+            values: HashMap::new(),
+        }
+    }
+
+    pub fn new_with_parent(parent: Rc<RefCell<Environment>>) -> Environment {
+        Environment {
+            parent: Some(parent),
             values: HashMap::new(),
         }
     }
