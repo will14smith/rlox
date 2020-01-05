@@ -19,6 +19,7 @@ pub enum ParserErrorDescription {
     ExpectedToken(Token, String),
     ExpectedExpression,
     ExpectedIdentifier(String),
+    InvalidAssignmentTarget,
 }
 
 type ParserResult<T> = Result<T, ParserError>;
@@ -104,7 +105,28 @@ impl Parser {
 
     // expressions
     fn expression(&mut self) -> ParserResult<Expr> {
-        self.equality()
+        self.assignment()
+    }
+
+    fn assignment(&mut self) -> ParserResult<Expr> {
+        let expr = self.equality()?;
+
+        if self.try_consume(Token::Equal) {
+            let equals = self.previous().clone();
+            let value = self.assignment()?;
+
+            match expr {
+                Expr::Var(target) => {
+                    Ok(Expr::Assign(target, Box::new(value)))
+                }
+                _ => {
+                    Err(self.error(&equals, ParserErrorDescription::InvalidAssignmentTarget))
+                }
+            }
+
+        } else {
+            Ok(expr)
+        }
     }
 
     fn equality(&mut self) -> ParserResult<Expr> {
@@ -181,7 +203,7 @@ impl Parser {
             Token::Number(val) => Ok(Expr::Number(*val)),
             Token::String(val) => Ok(Expr::String(val.clone())),
 
-            Token::Identifier(val) => Ok(Expr::Var(token.clone())),
+            Token::Identifier(_) => Ok(Expr::Var(token.clone())),
 
             Token::LeftParen => {
                 if self.is_at_end() {
@@ -351,6 +373,8 @@ mod tests {
         assert_eq!(expect_parse_expression(vec![Token::Number(123f64)]), Expr::Number(123f64));
         assert_eq!(expect_parse_expression(vec![Token::String("abc".into())]), Expr::String("abc".into()));
 
+        assert_eq!(expect_parse_expression(vec![Token::Identifier("abc".into())]), Expr::Var(tok_to_src(Token::Identifier("abc".into()))));
+
         assert_eq!(expect_parse_expression(vec![Token::LeftParen, Token::False, Token::RightParen]), Expr::Grouping(Box::new(Expr::Boolean(false))));
     }
 
@@ -374,12 +398,22 @@ mod tests {
                    Expr::Binary(Box::new(Expr::Number(123f64)), tok_to_src(Token::Plus), Box::new(Expr::Binary(Box::new(Expr::Number(456f64)), tok_to_src(Token::Star), Box::new(Expr::Number(789f64))))));
     }
 
+
+    #[test]
+    fn test_assignment() {
+        assert_eq!(expect_parse_expression(vec![Token::Identifier("abc".into()), Token::Equal, Token::Number(123f64)]), Expr::Assign(tok_to_src(Token::Identifier("abc".into())), Box::new(Expr::Number(123f64))));
+        assert_eq!(expect_parse_expression(vec![Token::Identifier("abc".into()), Token::Equal, Token::Identifier("def".into()), Token::Equal, Token::Number(123f64)]), Expr::Assign(tok_to_src(Token::Identifier("abc".into())), Box::new(Expr::Assign(tok_to_src(Token::Identifier("def".into())), Box::new(Expr::Number(123f64))))));
+    }
+
     #[test]
     fn test_error() {
         let result = parse_expression(vec![Token::LeftParen, Token::False]);
         assert!(result.is_err());
 
         let result = parse_expression(vec![Token::LeftParen]);
+        assert!(result.is_err());
+
+        let result = parse_expression(vec![Token::Number(123f64), Token::Equal, Token::Number(123f64)]);
         assert!(result.is_err());
     }
 }
