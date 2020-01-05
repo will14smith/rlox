@@ -1,18 +1,30 @@
 use rlox_scanner::{ SourceToken, Token };
 use rlox_parser::Expr;
-use crate::{EvaluateResult, Value, RuntimeError, RuntimeErrorDescription};
+use crate::{
+    interpreter::Environment,
+    EvaluateResult,
+    RuntimeError,
+    RuntimeErrorDescription,
+    Value,
+};
 
-pub fn evaluate(expr: &Expr) -> EvaluateResult<Value> {
+pub fn evaluate(environment: &mut Environment, expr: &Expr) -> EvaluateResult<Value> {
     match expr {
         Expr::Nil => Ok(Value::Nil),
         Expr::Boolean(value) => Ok(Value::Boolean(*value)),
         Expr::Number(value) => Ok(Value::Number(*value)),
         Expr::String(value) => Ok(Value::String(value.clone())),
 
-        Expr::Grouping(expr) => evaluate(expr),
+        Expr::Var(name) => {
+            let value = environment.get(name)?;
+
+            Ok(value.clone())
+        },
+
+        Expr::Grouping(expr) => evaluate(environment, expr),
 
         Expr::Unary(op, expr) => {
-            let value = evaluate(expr)?;
+            let value = evaluate(environment, expr)?;
 
             match &op.token {
                 Token::Minus => {
@@ -25,8 +37,8 @@ pub fn evaluate(expr: &Expr) -> EvaluateResult<Value> {
         },
 
         Expr::Binary(left_expr, op, right_expr) => {
-            let left = evaluate(left_expr)?;
-            let right = evaluate(right_expr)?;
+            let left = evaluate(environment, left_expr)?;
+            let right = evaluate(environment, right_expr)?;
 
             match &op.token {
                 Token::Plus => match (left, right) {
@@ -73,7 +85,8 @@ mod tests {
     use super::*;
 
     fn evaluate_expect(expr: &Expr) -> Value {
-        evaluate(expr).expect("Failed to evaluate expression")
+        let mut environment = Environment::new();
+        evaluate(&mut environment, expr).expect("Failed to evaluate expression")
     }
 
     fn tok_to_src(t: Token) -> SourceToken {
@@ -105,7 +118,9 @@ mod tests {
 
     #[test]
     fn test_unary_runtime_error() {
-        let result = evaluate(&Expr::Unary(tok_to_src(Token::Minus), Box::new(Expr::Boolean(true))));
+        let mut environment = Environment::new();
+
+        let result = evaluate(&mut environment, &Expr::Unary(tok_to_src(Token::Minus), Box::new(Expr::Boolean(true))));
         assert!(result.is_err());
     }
 
@@ -142,13 +157,15 @@ mod tests {
 
     #[test]
     fn test_binary_runtime_error() {
-        let result = evaluate(&Expr::Binary(Box::new(Expr::Number(8f64)), tok_to_src(Token::Minus), Box::new(Expr::String("cd".into()))));
+        let mut environment = Environment::new();
+
+        let result = evaluate(&mut environment, &Expr::Binary(Box::new(Expr::Number(8f64)), tok_to_src(Token::Minus), Box::new(Expr::String("cd".into()))));
         assert!(result.is_err());
 
-        let result = evaluate(&Expr::Binary(Box::new(Expr::Number(8f64)), tok_to_src(Token::Greater), Box::new(Expr::String("cd".into()))));
+        let result = evaluate(&mut environment, &Expr::Binary(Box::new(Expr::Number(8f64)), tok_to_src(Token::Greater), Box::new(Expr::String("cd".into()))));
         assert!(result.is_err());
 
-        let result = evaluate(&Expr::Binary(Box::new(Expr::Number(8f64)), tok_to_src(Token::Slash), Box::new(Expr::Number(0f64))));
+        let result = evaluate(&mut environment, &Expr::Binary(Box::new(Expr::Number(8f64)), tok_to_src(Token::Slash), Box::new(Expr::Number(0f64))));
         assert!(result.is_err());
     }
 }
