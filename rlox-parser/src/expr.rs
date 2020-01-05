@@ -6,6 +6,7 @@ pub enum Expr {
     Unary(SourceToken, Box<Expr>),
     Grouping(Box<Expr>),
 
+    Var(SourceToken),
     String(String),
     Number(f64),
     Boolean(bool),

@@ -1,5 +1,6 @@
 use rlox_scanner::{ SourceToken, Token };
 use crate::{ Expr, Stmt };
+use std::mem::Discriminant;
 
 pub struct Parser {
     tokens: Vec<SourceToken>,
@@ -16,7 +17,8 @@ pub struct ParserError {
 #[derive(Debug, PartialEq)]
 pub enum ParserErrorDescription {
     ExpectedToken(Token, String),
-    ExpectedExpression
+    ExpectedExpression,
+    ExpectedIdentifier(String),
 }
 
 type ParserResult<T> = Result<T, ParserError>;
@@ -34,15 +36,49 @@ impl Parser {
         let mut statements = Vec::new();
 
         while !self.is_at_end() {
-            statements.push(self.statement());
+            statements.push(self.declaration());
         }
 
         statements
     }
 
     // statements
+    fn declaration(&mut self) -> ParserResult<Stmt> {
+        fn inner(parser: &mut Parser) -> ParserResult<Stmt> {
+            if parser.try_consume(Token::Var) {
+                parser.var_declaration()
+            } else {
+                parser.statement()
+            }
+        }
+
+        match inner(self) {
+            Ok(stmt) => Ok(stmt),
+            Err(err) => {
+                self.synchronize();
+                Err(err)
+            },
+        }
+    }
+
+    fn var_declaration(&mut self) -> ParserResult<Stmt> {
+        // var keyword is already consumed
+        let name = self.consume_discriminant(::std::mem::discriminant(&Token::Identifier(String::new())), ParserErrorDescription::ExpectedIdentifier("Expected variable name".into()))?;
+        let name = name.clone();
+
+        let initializer = if self.try_consume(Token::Equal) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+
+        self.consume(Token::Semicolon, ParserErrorDescription::ExpectedToken(Token::Semicolon, "Expected ';' after variable declaration".into()))?;
+
+        Ok(Stmt::Var(name, initializer))
+    }
+
     fn statement(&mut self) -> ParserResult<Stmt> {
-        if self.expect(Token::Print) {
+        if self.try_consume(Token::Print) {
             self.print_statement()
         } else {
             self.expression_statement()
@@ -74,7 +110,7 @@ impl Parser {
     fn equality(&mut self) -> ParserResult<Expr> {
         let mut expr = self.comparison()?;
 
-        while self.expect_one_of(vec![Token::BangEqual, Token::EqualEqual]) {
+        while self.try_consume_one_of(vec![Token::BangEqual, Token::EqualEqual]) {
             let operator = self.previous().clone();
             let right = self.comparison()?;
 
@@ -87,7 +123,7 @@ impl Parser {
     fn comparison(&mut self) -> ParserResult<Expr> {
         let mut expr = self.addition()?;
 
-        while self.expect_one_of(vec![Token::Greater, Token::GreaterEqual, Token::Less, Token::LessEqual]) {
+        while self.try_consume_one_of(vec![Token::Greater, Token::GreaterEqual, Token::Less, Token::LessEqual]) {
             let operator = self.previous().clone();
             let right = self.addition()?;
 
@@ -100,7 +136,7 @@ impl Parser {
     fn addition(&mut self) -> ParserResult<Expr> {
         let mut expr = self.multiplication()?;
 
-        while self.expect_one_of(vec![Token::Minus, Token::Plus]) {
+        while self.try_consume_one_of(vec![Token::Minus, Token::Plus]) {
             let operator = self.previous().clone();
             let right = self.multiplication()?;
 
@@ -113,7 +149,7 @@ impl Parser {
     fn multiplication(&mut self) -> ParserResult<Expr> {
         let mut expr = self.unary()?;
 
-        while self.expect_one_of(vec![Token::Slash, Token::Star]) {
+        while self.try_consume_one_of(vec![Token::Slash, Token::Star]) {
             let operator = self.previous().clone();
             let right = self.unary()?;
 
@@ -124,7 +160,7 @@ impl Parser {
     }
 
     fn unary(&mut self) -> ParserResult<Expr> {
-        if self.expect_one_of(vec![Token::Bang, Token::Minus]) {
+        if self.try_consume_one_of(vec![Token::Bang, Token::Minus]) {
             let operator = self.previous().clone();
             let right = self.unary()?;
 
@@ -145,6 +181,8 @@ impl Parser {
             Token::Number(val) => Ok(Expr::Number(*val)),
             Token::String(val) => Ok(Expr::String(val.clone())),
 
+            Token::Identifier(val) => Ok(Expr::Var(token.clone())),
+
             Token::LeftParen => {
                 if self.is_at_end() {
                     return Err(self.error(self.peek(), ParserErrorDescription::ExpectedExpression));
@@ -161,8 +199,11 @@ impl Parser {
     }
 
     // movement
-    fn expect(&mut self, token: Token) -> bool {
-        if self.check(token) {
+    fn try_consume(&mut self, token: Token) -> bool {
+        self.try_consume_discriminant(::std::mem::discriminant(&token))
+    }
+    fn try_consume_discriminant(&mut self, token: Discriminant<Token>) -> bool {
+        if self.check_discriminant(token) {
             self.advance();
             true
         } else {
@@ -170,9 +211,9 @@ impl Parser {
         }
     }
 
-    fn expect_one_of(&mut self, tokens: Vec<Token>) -> bool {
+    fn try_consume_one_of(&mut self, tokens: Vec<Token>) -> bool {
         for token in tokens {
-            if self.expect(token) {
+            if self.try_consume(token) {
                 return true
             }
         }
@@ -188,9 +229,12 @@ impl Parser {
         self.previous()
     }
 
-    fn consume(&mut self, expected: Token, error: ParserErrorDescription) -> ParserResult<()> {
-        if self.expect(expected) {
-           Ok(())
+    fn consume(&mut self, expected: Token, error: ParserErrorDescription) -> ParserResult<&SourceToken> {
+        self.consume_discriminant(::std::mem::discriminant(&expected), error)
+    }
+    fn consume_discriminant(&mut self, expected: Discriminant<Token>, error: ParserErrorDescription) -> ParserResult<&SourceToken> {
+        if self.check_discriminant(expected) {
+           Ok(self.advance())
         } else {
             Err(self.error(self.peek(), error))
         }
@@ -222,11 +266,11 @@ impl Parser {
     }
 
     // checks
-    fn check(&self, token: Token) -> bool {
+    fn check_discriminant(&self, token: Discriminant<Token>) -> bool {
         if self.is_at_end() {
             false
         } else {
-            self.peek().token == token
+            ::std::mem::discriminant(&self.peek().token) == token
         }
     }
 
@@ -255,7 +299,7 @@ mod tests {
         source_tokens.push(tok_to_src(Token::Eof));
 
         let mut parser = Parser::new(source_tokens);
-        parser.statement()
+        parser.declaration()
     }
     fn expect_parse_statement(tokens: Vec<Token>) -> Stmt {
         parse_statement(tokens).expect("Failed to parse statement")
@@ -276,10 +320,16 @@ mod tests {
 
     fn tok_to_src(t: Token) -> SourceToken {
         SourceToken {
-            token: t,
-            lexeme: String::new(),
+            token: t.clone(),
+            lexeme: format!("{:?}", t),
             line: 0
         }
+    }
+
+    #[test]
+    fn test_var_declaration() {
+        assert_eq!(expect_parse_statement(vec![Token::Var, Token::Identifier("abc".into()), Token::Semicolon]), Stmt::Var(tok_to_src(Token::Identifier("abc".into())), None));
+        assert_eq!(expect_parse_statement(vec![Token::Var, Token::Identifier("abc".into()), Token::Equal, Token::Number(123f64), Token::Semicolon]), Stmt::Var(tok_to_src(Token::Identifier("abc".into())), Some(Expr::Number(123f64))));
     }
 
     #[test]
