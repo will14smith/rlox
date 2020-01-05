@@ -72,6 +72,14 @@ pub fn evaluate(environment: &mut Environment, expr: &Expr) -> EvaluateResult<Va
                 _ => panic!("Invalid binary operation {:?}", op.token)
             }
         },
+
+        Expr::Assign(name, expr) => {
+            let value = evaluate(environment, expr)?;
+
+            environment.assign(name, value.clone())?;
+
+            Ok(value)
+        }
     }
 }
 
@@ -167,5 +175,20 @@ mod tests {
 
         let result = evaluate(&mut environment, &Expr::Binary(Box::new(Expr::Number(8f64)), tok_to_src(Token::Slash), Box::new(Expr::Number(0f64))));
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_assign() {
+        let mut environment = Environment::new();
+        environment.define("a".into(), Value::Nil);
+        
+        let a = tok_to_src(Token::Identifier("a".into()));
+        evaluate(&mut environment, &Expr::Assign(a.clone(), Box::new(Expr::Boolean(true)))).unwrap();
+
+        assert_eq!(environment.get(&a), Ok(&Value::Boolean(true)));
+
+        let result = evaluate(&mut environment, &Expr::Assign(tok_to_src(Token::Identifier("b".into())), Box::new(Expr::Boolean(true))));
+        assert!(result.is_err());
+
     }
 }
