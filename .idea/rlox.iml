@@ -18,6 +18,11 @@
       <sourceFolder url="file://$MODULE_DIR$/rlox-parser/examples" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/rlox-parser/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/rlox-parser/benches" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/rlox-interpreter/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/rlox-interpreter/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/rlox-interpreter/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/rlox-interpreter/benches" isTestSource="true" />
+      <excludeFolder url="file://$MODULE_DIR$/rlox-interpreter/target" />
       <excludeFolder url="file://$MODULE_DIR$/rlox-parser/target" />
       <excludeFolder url="file://$MODULE_DIR$/rlox-repl/target" />
       <excludeFolder url="file://$MODULE_DIR$/rlox-scanner/target" />
