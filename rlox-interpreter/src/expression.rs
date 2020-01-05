@@ -22,7 +22,24 @@ pub fn evaluate(expr: &Expr) -> Value {
             }
         },
 
-        Expr::Binary(_, _, _) => unimplemented!(),
+        Expr::Binary(left_expr, op, right_expr) => {
+            let left = evaluate(left_expr);
+            let right = evaluate(right_expr);
+
+            match &op.token {
+                Token::Plus => match (left, right) {
+                    (Value::Number(left), Value::Number(right)) => Value::Number(left + right),
+                    (Value::String(left), Value::String(right)) => Value::String(left + &right),
+
+                    (left, right) => panic!("Invalid operands for addition {:?} + {:?}", left, right)
+                },
+                Token::Minus => Value::Number(left.as_number() - right.as_number()),
+                Token::Star => Value::Number(left.as_number() * right.as_number()),
+                Token::Slash => Value::Number(left.as_number() / right.as_number()),
+
+                _ => panic!("Invalid binary operation {:?}", op.token)
+            }
+        },
     }
 }
 
@@ -63,5 +80,21 @@ mod tests {
         // TODO
         // evaluate(&Expr::Unary(tok_to_src(Token::Minus), Box::new(Expr::Boolean(true))))
         // evaluate(&Expr::Unary(tok_to_src(Token::Bang), Box::new(Expr::Number(123f64))))
+    }
+
+    #[test]
+    fn test_binary() {
+        assert_eq!(evaluate(&Expr::Binary(Box::new(Expr::Number(8f64)), tok_to_src(Token::Plus), Box::new(Expr::Number(4f64)))), Value::Number(12f64));
+        assert_eq!(evaluate(&Expr::Binary(Box::new(Expr::Number(8f64)), tok_to_src(Token::Minus), Box::new(Expr::Number(4f64)))), Value::Number(4f64));
+        assert_eq!(evaluate(&Expr::Binary(Box::new(Expr::Number(8f64)), tok_to_src(Token::Star), Box::new(Expr::Number(4f64)))), Value::Number(32f64));
+        assert_eq!(evaluate(&Expr::Binary(Box::new(Expr::Number(8f64)), tok_to_src(Token::Slash), Box::new(Expr::Number(4f64)))), Value::Number(2f64));
+
+        assert_eq!(evaluate(&Expr::Binary(Box::new(Expr::String("ab".into())), tok_to_src(Token::Plus), Box::new(Expr::String("cd".into())))), Value::String("abcd".into()));
+    }
+
+    #[test]
+    fn test_binary_runtime_error() {
+        // TODO
+        // assert_eq!(evaluate(&Expr::Binary(Box::new(Expr::Number(8f64)), tok_to_src(Token::Minus), Box::new(Expr::String("cd".into())))), Value::Number(12f64));
     }
 }
