@@ -4,6 +4,7 @@ use rlox_scanner::SourceToken;
 pub enum Expr {
     Assign(SourceToken, Box<Expr>),
     Binary(Box<Expr>, SourceToken, Box<Expr>),
+    Logical(Box<Expr>, SourceToken, Box<Expr>),
     Unary(SourceToken, Box<Expr>),
     Grouping(Box<Expr>),
 

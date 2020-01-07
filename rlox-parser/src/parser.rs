@@ -142,7 +142,7 @@ impl Parser {
     }
 
     fn assignment(&mut self) -> ParserResult<Expr> {
-        let expr = self.equality()?;
+        let expr = self.or()?;
 
         if self.try_consume(Token::Equal) {
             let equals = self.previous().clone();
@@ -160,6 +160,32 @@ impl Parser {
         } else {
             Ok(expr)
         }
+    }
+
+    fn or(&mut self) -> ParserResult<Expr> {
+        let mut expr = self.and()?;
+
+        while self.try_consume(Token::Or) {
+            let operator = self.previous().clone();
+            let right = self.and()?;
+
+            expr = Expr::Logical(Box::new(expr), operator, Box::new(right));
+        }
+
+        Ok(expr)
+    }
+
+    fn and(&mut self) -> ParserResult<Expr> {
+        let mut expr = self.equality()?;
+
+        while self.try_consume(Token::And) {
+            let operator = self.previous().clone();
+            let right = self.equality()?;
+
+            expr = Expr::Logical(Box::new(expr), operator, Box::new(right));
+        }
+
+        Ok(expr)
     }
 
     fn equality(&mut self) -> ParserResult<Expr> {
@@ -431,9 +457,8 @@ mod tests {
     #[test]
     fn test_binary() {
         for operator in vec![Token::Slash, Token::Star, Token::Minus, Token::Plus, Token::Greater, Token::GreaterEqual, Token::Less, Token::LessEqual, Token::BangEqual, Token::EqualEqual] {
-            assert_eq!(expect_parse_expression(vec![Token::Number(123f64), operator.clone(), Token::Number(456f64)]), Expr::Binary(Box::new(Expr::Number(123f64)), tok_to_src(operator), Box::new(Expr::Number(456f64))));
-        }
-        for operator in vec![Token::Slash, Token::Star, Token::Minus, Token::Plus, Token::Greater, Token::GreaterEqual, Token::Less, Token::LessEqual, Token::BangEqual, Token::EqualEqual] {
+            assert_eq!(expect_parse_expression(vec![Token::Number(123f64), operator.clone(), Token::Number(456f64)]),
+                       Expr::Binary(Box::new(Expr::Number(123f64)), tok_to_src(operator.clone()), Box::new(Expr::Number(456f64))));
             assert_eq!(expect_parse_expression(vec![Token::Number(123f64), operator.clone(), Token::Number(456f64), operator.clone(), Token::Number(789f64)]),
                        Expr::Binary(Box::new(Expr::Binary(Box::new(Expr::Number(123f64)), tok_to_src(operator.clone()), Box::new(Expr::Number(456f64)))), tok_to_src(operator), Box::new(Expr::Number(789f64))));
         }
@@ -442,6 +467,15 @@ mod tests {
                    Expr::Binary(Box::new(Expr::Number(123f64)), tok_to_src(Token::Plus), Box::new(Expr::Binary(Box::new(Expr::Number(456f64)), tok_to_src(Token::Star), Box::new(Expr::Number(789f64))))));
     }
 
+    #[test]
+    fn test_logical() {
+        for operator in vec![Token::And, Token::Or] {
+            assert_eq!(expect_parse_expression(vec![Token::False, operator.clone(), Token::True]),
+                       Expr::Logical(Box::new(Expr::Boolean(false)), tok_to_src(operator.clone()), Box::new(Expr::Boolean(true))));
+            assert_eq!(expect_parse_expression(vec![Token::False, operator.clone(), Token::True, operator.clone(), Token::True]),
+                       Expr::Logical(Box::new(Expr::Logical(Box::new(Expr::Boolean(false)), tok_to_src(operator.clone()), Box::new(Expr::Boolean(true)))), tok_to_src(operator), Box::new(Expr::Boolean(true))));
+        }
+    }
 
     #[test]
     fn test_assignment() {

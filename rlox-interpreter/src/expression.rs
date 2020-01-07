@@ -36,6 +36,17 @@ pub fn evaluate(environment: &mut Environment, expr: &Expr) -> EvaluateResult<Va
             }
         },
 
+        Expr::Logical(left_expr, op, right_expr) => {
+            let left = evaluate(environment, left_expr)?;
+
+            match &op.token {
+                Token::Or => if left.is_truthy() { Ok(left) } else { evaluate(environment, right_expr) },
+                Token::And => if !left.is_truthy() { Ok(left) } else { evaluate(environment, right_expr) },
+
+                _ => panic!("Invalid logical operation {:?}", op.token)
+            }
+        },
+
         Expr::Binary(left_expr, op, right_expr) => {
             let left = evaluate(environment, left_expr)?;
             let right = evaluate(environment, right_expr)?;
