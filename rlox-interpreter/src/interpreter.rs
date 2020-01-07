@@ -66,6 +66,13 @@ impl Interpreter {
 
                 Ok(())
             },
+            Stmt::While(condition, body) => {
+                while evaluate(&mut self.environment.borrow_mut(), condition)?.is_truthy() {
+                    self.evaluate_stmt(body)?;
+                }
+                
+                Ok(())
+            },
             Stmt::Block(statements) => {
                 let environment= Rc::new(RefCell::new(Environment::new_with_parent(Rc::clone(&self.environment))));
 

@@ -83,6 +83,8 @@ impl Parser {
             self.if_statement()
         } else if self.try_consume(Token::Print) {
             self.print_statement()
+        } else if self.try_consume(Token::While) {
+            self.while_statement()
         } else if self.try_consume(Token::LeftBrace) {
             Ok(Stmt::Block(self.block()?))
         } else {
@@ -115,7 +117,18 @@ impl Parser {
         Ok(Stmt::Print(value))
     }
 
-    fn block(&mut self) -> ParserResult<Vec<Stmt>> {
+    fn while_statement(&mut self) -> ParserResult<Stmt> {
+        // while keyword is already consumed
+        self.consume(Token::LeftParen, ParserErrorDescription::ExpectedToken(Token::LeftParen, "Expected '(' after 'if'".into()))?;
+        let condition = self.expression()?;
+        self.consume(Token::RightParen, ParserErrorDescription::ExpectedToken(Token::RightParen, "Expected ')' after if condition".into()))?;
+
+        let body = Box::new(self.statement()?);
+
+        Ok(Stmt::While(condition, body))
+    }
+
+        fn block(&mut self) -> ParserResult<Vec<Stmt>> {
         // left brace is already consumed
         let mut statements = Vec::new();
 
@@ -427,6 +440,11 @@ mod tests {
     #[test]
     fn test_print() {
         assert_eq!(expect_parse_statement(vec![Token::Print, Token::Number(123f64), Token::Semicolon]), Stmt::Print(Expr::Number(123f64)));
+    }
+
+    #[test]
+    fn test_while() {
+        assert_eq!(expect_parse_statement(vec![Token::While, Token::LeftParen, Token::Number(123f64), Token::RightParen, Token::Print, Token::Number(456f64), Token::Semicolon]), Stmt::While(Expr::Number(123f64), Box::new(Stmt::Print(Expr::Number(456f64)))));
     }
 
     #[test]
