@@ -22,10 +22,15 @@
       <sourceFolder url="file://$MODULE_DIR$/rlox-interpreter/examples" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/rlox-interpreter/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/rlox-interpreter/benches" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/rlox/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/rlox/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/rlox/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/rlox/benches" isTestSource="true" />
       <excludeFolder url="file://$MODULE_DIR$/rlox-interpreter/target" />
       <excludeFolder url="file://$MODULE_DIR$/rlox-parser/target" />
       <excludeFolder url="file://$MODULE_DIR$/rlox-repl/target" />
       <excludeFolder url="file://$MODULE_DIR$/rlox-scanner/target" />
+      <excludeFolder url="file://$MODULE_DIR$/rlox/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />

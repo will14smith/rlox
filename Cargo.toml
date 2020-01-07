@@ -5,4 +5,5 @@ members = [
     "rlox-scanner",
     "rlox-parser",
     "rlox-interpreter",
+    "rlox",
 ]

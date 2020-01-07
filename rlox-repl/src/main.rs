@@ -37,7 +37,7 @@ fn run(interpreter: &mut Interpreter, source: &String) -> Result<(), ReplError> 
         let token = result.map_err(ReplError::Scanner)?;
 
         match &token.token {
-            Token::NewLine | Token::Whitespace => { }
+            Token::NewLine | Token::Whitespace | Token::Comment => { }
 
             _ => tokens.push(token),
         }
