@@ -39,6 +39,17 @@ impl Interpreter {
 
                 Ok(())
             },
+            Stmt::If(cond, then_branch, else_branch_opt) => {
+                let cond_value = evaluate(&mut self.environment.borrow_mut(), cond)?;
+
+                if cond_value.is_truthy() {
+                    self.evaluate_stmt(then_branch)
+                } else if let Some(else_branch) = else_branch_opt {
+                    self.evaluate_stmt(else_branch)
+                } else {
+                    Ok(())
+                }
+            }
             Stmt::Print(expr) => {
                 let value = evaluate(&mut self.environment.borrow_mut(), expr)?;
                 println!("{}", value);

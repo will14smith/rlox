@@ -79,13 +79,31 @@ impl Parser {
     }
 
     fn statement(&mut self) -> ParserResult<Stmt> {
-        if self.try_consume(Token::Print) {
+        if self.try_consume(Token::If) {
+            self.if_statement()
+        } else if self.try_consume(Token::Print) {
             self.print_statement()
         } else if self.try_consume(Token::LeftBrace) {
             Ok(Stmt::Block(self.block()?))
         } else {
             self.expression_statement()
         }
+    }
+
+    fn if_statement(&mut self) -> ParserResult<Stmt> {
+        // if keyword is already consumed
+        self.consume(Token::LeftParen, ParserErrorDescription::ExpectedToken(Token::LeftParen, "Expected '(' after 'if'".into()))?;
+        let condition = self.expression()?;
+        self.consume(Token::RightParen, ParserErrorDescription::ExpectedToken(Token::RightParen, "Expected ')' after if condition".into()))?;
+
+        let then_branch = Box::new(self.statement()?);
+        let else_branch = if self.try_consume(Token::Else) {
+            Some(Box::new(self.statement()?))
+        } else {
+            None
+        };
+
+        Ok(Stmt::If(condition, then_branch, else_branch))
     }
 
     fn print_statement(&mut self) -> ParserResult<Stmt> {
@@ -370,6 +388,14 @@ mod tests {
     fn test_var_declaration() {
         assert_eq!(expect_parse_statement(vec![Token::Var, Token::Identifier("abc".into()), Token::Semicolon]), Stmt::Var(tok_to_src(Token::Identifier("abc".into())), None));
         assert_eq!(expect_parse_statement(vec![Token::Var, Token::Identifier("abc".into()), Token::Equal, Token::Number(123f64), Token::Semicolon]), Stmt::Var(tok_to_src(Token::Identifier("abc".into())), Some(Expr::Number(123f64))));
+    }
+
+    #[test]
+    fn test_if() {
+        assert_eq!(expect_parse_statement(vec![Token::If, Token::LeftParen, Token::Number(1f64), Token::RightParen, Token::Print, Token::Number(2f64), Token::Semicolon]),
+                   Stmt::If(Expr::Number(1f64), Box::new(Stmt::Print(Expr::Number(2f64))), None));
+        assert_eq!(expect_parse_statement(vec![Token::If, Token::LeftParen, Token::Number(1f64), Token::RightParen, Token::Print, Token::Number(2f64), Token::Semicolon, Token::Else, Token::Print, Token::Number(3f64), Token::Semicolon]),
+                   Stmt::If(Expr::Number(1f64), Box::new(Stmt::Print(Expr::Number(2f64))), Some(Box::new(Stmt::Print(Expr::Number(3f64))))));
     }
 
     #[test]
