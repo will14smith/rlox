@@ -79,7 +79,9 @@ impl Parser {
     }
 
     fn statement(&mut self) -> ParserResult<Stmt> {
-        if self.try_consume(Token::If) {
+        if self.try_consume(Token::For) {
+            self.for_statement()
+        } else if self.try_consume(Token::If) {
             self.if_statement()
         } else if self.try_consume(Token::Print) {
             self.print_statement()
@@ -92,7 +94,48 @@ impl Parser {
         }
     }
 
-    fn if_statement(&mut self) -> ParserResult<Stmt> {
+    fn for_statement(&mut self) -> ParserResult<Stmt> {
+        // for keyword is already consumed
+        self.consume(Token::LeftParen, ParserErrorDescription::ExpectedToken(Token::LeftParen, "Expected '(' after 'for'".into()))?;
+
+        let initializer = if self.try_consume(Token::Semicolon) {
+            None
+        } else if self.try_consume(Token::Var) {
+            Some(self.var_declaration()?)
+        } else {
+            Some(self.expression_statement()?)
+        };
+
+        let condition = if self.check(Token::Semicolon) {
+            Expr::Boolean(true)
+        } else {
+            self.expression()?
+        };
+        self.consume(Token::Semicolon, ParserErrorDescription::ExpectedToken(Token::Semicolon, "Expected ';' after for condition".into()))?;
+
+        let update = if self.check(Token::RightParen) {
+            None
+        } else {
+            Some(self.expression()?)
+        };
+        self.consume(Token::RightParen, ParserErrorDescription::ExpectedToken(Token::RightParen, "Expected ')' after for update".into()))?;
+
+        let mut body = self.statement()?;
+
+        if let Some(update) = update {
+            body = Stmt::Block(vec![body, Stmt::Expression(update)]);
+        }
+
+        body = Stmt::While(condition, Box::new(body));
+
+        if let Some(initializer) = initializer {
+            body = Stmt::Block(vec![initializer, body]);
+        }
+
+        Ok(body)
+    }
+
+        fn if_statement(&mut self) -> ParserResult<Stmt> {
         // if keyword is already consumed
         self.consume(Token::LeftParen, ParserErrorDescription::ExpectedToken(Token::LeftParen, "Expected '(' after 'if'".into()))?;
         let condition = self.expression()?;
@@ -427,6 +470,38 @@ mod tests {
     fn test_var_declaration() {
         assert_eq!(expect_parse_statement(vec![Token::Var, Token::Identifier("abc".into()), Token::Semicolon]), Stmt::Var(tok_to_src(Token::Identifier("abc".into())), None));
         assert_eq!(expect_parse_statement(vec![Token::Var, Token::Identifier("abc".into()), Token::Equal, Token::Number(123f64), Token::Semicolon]), Stmt::Var(tok_to_src(Token::Identifier("abc".into())), Some(Expr::Number(123f64))));
+    }
+
+    #[test]
+    fn test_for() {
+        let empty_for = vec![Token::For, Token::LeftParen, Token::Semicolon, Token::Semicolon, Token::RightParen, Token::Print, Token::Number(2f64), Token::Semicolon];
+        let just_init_for = vec![Token::For, Token::LeftParen, Token::Var, Token::Identifier("a".into()), Token::Semicolon, Token::Semicolon, Token::RightParen, Token::Print, Token::Number(2f64), Token::Semicolon];
+        let just_cond_for = vec![Token::For, Token::LeftParen, Token::Semicolon, Token::False, Token::Semicolon, Token::RightParen, Token::Print, Token::Number(2f64), Token::Semicolon];
+        let just_update_for = vec![Token::For, Token::LeftParen, Token::Semicolon, Token::Semicolon, Token::Identifier("a".into()), Token::Equal, Token::False, Token::RightParen, Token::Print, Token::Number(2f64), Token::Semicolon];
+        let all_for = vec![Token::For, Token::LeftParen, Token::Var, Token::Identifier("a".into()), Token::Semicolon, Token::Bang, Token::Identifier("a".into()), Token::Semicolon, Token::Identifier("a".into()), Token::Equal, Token::False, Token::RightParen, Token::Print, Token::Number(2f64), Token::Semicolon];
+
+        assert_eq!(expect_parse_statement(empty_for),
+                   Stmt::While(Expr::Boolean(true), Box::new(Stmt::Print(Expr::Number(2f64)))));
+        assert_eq!(expect_parse_statement(just_init_for),
+                   Stmt::Block(vec![
+                       Stmt::Var(tok_to_src(Token::Identifier("a".into())), None),
+                       Stmt::While(Expr::Boolean(true), Box::new(Stmt::Print(Expr::Number(2f64)))),
+                   ]));
+        assert_eq!(expect_parse_statement(just_cond_for),
+                   Stmt::While(Expr::Boolean(false), Box::new(Stmt::Print(Expr::Number(2f64)))));
+        assert_eq!(expect_parse_statement(just_update_for),
+                   Stmt::While(Expr::Boolean(true), Box::new(Stmt::Block(vec![
+                       Stmt::Print(Expr::Number(2f64)),
+                       Stmt::Expression(Expr::Assign(tok_to_src(Token::Identifier("a".into())), Box::new(Expr::Boolean(false))))
+                   ]))));
+        assert_eq!(expect_parse_statement(all_for),
+                   Stmt::Block(vec![
+                       Stmt::Var(tok_to_src(Token::Identifier("a".into())), None),
+                       Stmt::While(Expr::Unary(tok_to_src(Token::Bang), Box::new(Expr::Var(tok_to_src(Token::Identifier("a".into()))))), Box::new(Stmt::Block(vec![
+                           Stmt::Print(Expr::Number(2f64)),
+                           Stmt::Expression(Expr::Assign(tok_to_src(Token::Identifier("a".into())), Box::new(Expr::Boolean(false))))
+                       ]))),
+                   ]));
     }
 
     #[test]

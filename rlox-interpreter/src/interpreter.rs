@@ -70,7 +70,7 @@ impl Interpreter {
                 while evaluate(&mut self.environment.borrow_mut(), condition)?.is_truthy() {
                     self.evaluate_stmt(body)?;
                 }
-                
+
                 Ok(())
             },
             Stmt::Block(statements) => {

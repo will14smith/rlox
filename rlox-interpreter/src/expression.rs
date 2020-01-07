@@ -102,6 +102,7 @@ fn cast_to_number(token: &SourceToken, value: Value) -> Result<f64, RuntimeError
 mod tests {
     use rlox_scanner::{ SourceToken };
     use super::*;
+    use std::rc::Rc;
 
     fn evaluate_expect(expr: &Expr) -> Value {
         let mut environment = Environment::new();
@@ -196,7 +197,7 @@ mod tests {
         let a = tok_to_src(Token::Identifier("a".into()));
         evaluate(&mut environment, &Expr::Assign(a.clone(), Box::new(Expr::Boolean(true)))).unwrap();
 
-        assert_eq!(environment.get(&a), Ok(&Value::Boolean(true)));
+        assert_eq!(environment.get(&a), Ok(Rc::new(Value::Boolean(true))));
 
         let result = evaluate(&mut environment, &Expr::Assign(tok_to_src(Token::Identifier("b".into())), Box::new(Expr::Boolean(true))));
         assert!(result.is_err());

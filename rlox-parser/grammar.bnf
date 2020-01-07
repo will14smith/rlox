@@ -5,6 +5,7 @@ declaration    -> varDecl
                 ;
 
 statement      -> exprStmt
+                | forStmt
                 | ifStmt
                 | printStmt
                 | whileStmt
@@ -14,6 +15,7 @@ statement      -> exprStmt
 varDecl        -> "var" IDENTIFIER ( "=" expression )? ";";
 exprStmt       -> expression ";";
 ifStmt         -> "if" "(" expression ")" statement ( "else" statement )?;
+forStmt        -> "for" "(" ( varDecl | exprStmt | ";" ) expression? ";" expression? ")" statement;
 printStmt      -> "print" expression ";";
 whileStmt      -> "while" "(" expression ")" statement;
 block          -> "{" declaration* "}";
