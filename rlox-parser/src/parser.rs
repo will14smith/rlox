@@ -20,6 +20,7 @@ pub enum ParserErrorDescription {
     ExpectedExpression,
     ExpectedIdentifier(String),
     InvalidAssignmentTarget,
+    TooManyArguments,
 }
 
 type ParserResult<T> = Result<T, ParserError>;
@@ -303,8 +304,38 @@ impl Parser {
 
             Ok(Expr::Unary(operator, Box::new(right)))
         } else {
-            self.primary()
+            self.call()
         }
+    }
+
+    fn call(&mut self) -> ParserResult<Expr> {
+        let mut expr = self.primary()?;
+
+        while self.try_consume(Token::LeftParen) {
+            expr = self.finish_call(expr)?;
+        }
+
+        Ok(expr)
+    }
+
+    fn finish_call(&mut self, callee: Expr) -> ParserResult<Expr> {
+        // left paren is already consumed
+        let mut arguments = Vec::new();
+
+        if !self.check(Token::RightParen) {
+            arguments.push(self.expression()?);
+            while self.try_consume(Token::Comma) {
+                if arguments.len() >= 255 {
+                    return Err(self.error(self.peek(), ParserErrorDescription::TooManyArguments));
+                }
+
+                arguments.push(self.expression()?);
+            }
+        }
+
+        let paren = self.consume(Token::RightParen, ParserErrorDescription::ExpectedToken(Token::RightParen, "Expected ')' after arguments".into()))?;
+
+        Ok(Expr::Call(Box::new(callee), paren.clone(), arguments))
     }
 
     fn primary(&mut self) -> ParserResult<Expr> {
@@ -568,6 +599,13 @@ mod tests {
             assert_eq!(expect_parse_expression(vec![Token::False, operator.clone(), Token::True, operator.clone(), Token::True]),
                        Expr::Logical(Box::new(Expr::Logical(Box::new(Expr::Boolean(false)), tok_to_src(operator.clone()), Box::new(Expr::Boolean(true)))), tok_to_src(operator), Box::new(Expr::Boolean(true))));
         }
+    }
+
+    #[test]
+    fn test_call() {
+        assert_eq!(expect_parse_expression(vec![Token::Identifier("abc".into()), Token::LeftParen, Token::RightParen]), Expr::Call(Box::new(Expr::Var(tok_to_src(Token::Identifier("abc".into())))), tok_to_src(Token::RightParen), vec![]));
+        assert_eq!(expect_parse_expression(vec![Token::Identifier("abc".into()), Token::LeftParen, Token::Number(123f64), Token::RightParen]), Expr::Call(Box::new(Expr::Var(tok_to_src(Token::Identifier("abc".into())))), tok_to_src(Token::RightParen), vec![Expr::Number(123f64)]));
+        assert_eq!(expect_parse_expression(vec![Token::Identifier("abc".into()), Token::LeftParen, Token::Number(123f64), Token::Comma, Token::Number(456f64), Token::RightParen]), Expr::Call(Box::new(Expr::Var(tok_to_src(Token::Identifier("abc".into())))), tok_to_src(Token::RightParen), vec![Expr::Number(123f64), Expr::Number(456f64)]));
     }
 
     #[test]

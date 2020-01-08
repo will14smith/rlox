@@ -28,3 +28,13 @@ pub struct SourceToken {
     pub lexeme: String,
     pub line: u32,
 }
+
+impl Default for SourceToken {
+    fn default() -> Self {
+        SourceToken {
+            token: Token::Eof,
+            lexeme: String::new(),
+            line: 0
+        }
+    }
+}
