@@ -15,6 +15,7 @@ impl RuntimeError {
 
 #[derive(Debug, PartialEq)]
 pub enum RuntimeErrorDescription {
+    Message(String),
     ExpectedNumber,
     InvalidAdditionArguments(Value, Value),
     DivideByZero,

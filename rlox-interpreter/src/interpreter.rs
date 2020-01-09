@@ -7,11 +7,12 @@ use rlox_scanner::{ SourceToken, Token };
 use rlox_parser::Stmt;
 use crate::{
     EvaluateResult,
-    Value,
     RuntimeError,
-    RuntimeErrorDescription
+    RuntimeErrorDescription,
+    Value,
+    expression::evaluate,
+    native,
 };
-use crate::expression::evaluate;
 
 pub struct Interpreter {
     environment: Rc<RefCell<Environment>>,
@@ -19,8 +20,12 @@ pub struct Interpreter {
 
 impl Interpreter {
     pub fn new() -> Interpreter {
+        let mut globals = Environment::new();
+
+        native::define_functions(&mut globals);
+
         Interpreter {
-            environment: Rc::new(RefCell::new(Environment::new())),
+            environment: Rc::new(RefCell::new(globals)),
         }
     }
 
