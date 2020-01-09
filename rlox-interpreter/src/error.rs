@@ -19,4 +19,6 @@ pub enum RuntimeErrorDescription {
     InvalidAdditionArguments(Value, Value),
     DivideByZero,
     UndefinedVariable,
+    CalleeNotCallable,
+    UnexpectedNumberOfArguments { expected: usize, provided: usize },
 }

@@ -84,6 +84,25 @@ pub fn evaluate(environment: &mut Environment, expr: &Expr) -> EvaluateResult<Va
             }
         },
 
+        Expr::Call(callee_expr, paren, argument_exprs) => {
+            let callee = evaluate(environment, callee_expr)?;
+
+            let mut arguments = Vec::new();
+            for expr in argument_exprs {
+                let argument = evaluate(environment, expr)?;
+                arguments.push(argument);
+            }
+
+            let function = callee.as_callable()
+                .map_err(|_| RuntimeError::new(paren.clone(), RuntimeErrorDescription::CalleeNotCallable))?;
+
+            if arguments.len() != function.arity() {
+                return Err(RuntimeError::new(paren.clone(), RuntimeErrorDescription::UnexpectedNumberOfArguments { expected: function.arity(), provided: arguments.len() }))
+            }
+
+            function.call(arguments)
+        },
+
         Expr::Assign(name, expr) => {
             let value = evaluate(environment, expr)?;
 
