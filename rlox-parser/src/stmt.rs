@@ -1,3 +1,4 @@
+use std::rc::Rc;
 use rlox_scanner::SourceToken;
 use crate::Expr;
 
@@ -16,11 +17,11 @@ pub enum Stmt {
 pub struct Func {
     pub name: SourceToken,
     pub parameters: Vec<SourceToken>,
-    pub body: Box<Stmt>,
+    pub body: Rc<Stmt>,
 }
 
 impl Func {
-    pub fn new(name: SourceToken, parameters: Vec<SourceToken>, body: Box<Stmt>) -> Func {
+    pub fn new(name: SourceToken, parameters: Vec<SourceToken>, body: Rc<Stmt>) -> Func {
         Func {
             name,
             parameters,

@@ -1,6 +1,6 @@
 use std::fmt::{ Debug, Display };
 use std::rc::Rc;
-use crate::{ RuntimeError };
+use crate::{ Interpreter, RuntimeError };
 
 #[derive(Clone, Debug)]
 pub enum Value {
@@ -13,7 +13,7 @@ pub enum Value {
 
 pub trait Callable : Debug + Display {
     fn arity(&self) -> usize;
-    fn call(&self, arguments: Vec<Value>) -> Result<Value, RuntimeError>;
+    fn call(&self, interpreter: &mut Interpreter, arguments: Vec<Value>) -> Result<Value, RuntimeError>;
 }
 
 impl Value {

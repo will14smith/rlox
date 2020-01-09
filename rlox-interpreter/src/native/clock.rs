@@ -1,6 +1,6 @@
 use std::time::SystemTime;
 use rlox_scanner::SourceToken;
-use crate::{ RuntimeError, RuntimeErrorDescription, value::{Callable, Value} };
+use crate::{RuntimeError, RuntimeErrorDescription, value::{Callable, Value}, Interpreter};
 use std::fmt::{Display, Formatter, Error};
 
 #[derive(Clone, Debug)]
@@ -11,7 +11,7 @@ impl Callable for Clock {
         0
     }
 
-    fn call(&self, _arguments: Vec<Value>) -> Result<Value, RuntimeError> {
+    fn call(&self, _: &mut Interpreter, _arguments: Vec<Value>) -> Result<Value, RuntimeError> {
         let time = SystemTime::now();
         let x = time.duration_since(SystemTime::UNIX_EPOCH)
             .map_err(|e| RuntimeError::new(SourceToken::default(), RuntimeErrorDescription::Message(format!("Error getting current time: {:?}", e))))?;

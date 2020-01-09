@@ -1,5 +1,6 @@
 mod error;
 mod expression;
+mod function;
 mod interpreter;
 mod value;
 

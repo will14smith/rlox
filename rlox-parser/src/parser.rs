@@ -1,4 +1,7 @@
-use std::mem::Discriminant;
+use std::{
+    mem::Discriminant,
+    rc::Rc,
+};
 use rlox_scanner::{ SourceToken, Token };
 use crate::{
     Expr,
@@ -221,7 +224,7 @@ impl Parser {
 
         let body = self.statement()?;
 
-        Ok(Func::new(name, parameters, Box::new(body)))
+        Ok(Func::new(name, parameters, Rc::new(body)))
     }
 
     // expressions
@@ -535,10 +538,10 @@ mod tests {
 
     #[test]
     fn test_fun_declaration() {
-        assert_eq!(expect_parse_statement(vec![Token::Fun, ident("abc"), Token::LeftParen, Token::RightParen, Token::LeftBrace, Token::RightBrace]), Stmt::Function(Func::new(tok_to_src(ident("abc")), vec![], Box::new(Stmt::Block(vec![])))));
-        assert_eq!(expect_parse_statement(vec![Token::Fun, ident("abc"), Token::LeftParen, ident("a"), Token::RightParen, Token::LeftBrace, Token::RightBrace]), Stmt::Function(Func::new(tok_to_src(ident("abc")), vec![tok_to_src(ident("a"))], Box::new(Stmt::Block(vec![])))));
-        assert_eq!(expect_parse_statement(vec![Token::Fun, ident("abc"), Token::LeftParen, ident("a"), Token::Comma, ident("b"), Token::RightParen, Token::LeftBrace, Token::RightBrace]), Stmt::Function(Func::new(tok_to_src(ident("abc")), vec![tok_to_src(ident("a")), tok_to_src(ident("b"))], Box::new(Stmt::Block(vec![])))));
-        assert_eq!(expect_parse_statement(vec![Token::Fun, ident("abc"), Token::LeftParen, Token::RightParen, Token::LeftBrace, Token::Print, Token::Number(1f64), Token::Semicolon, Token::RightBrace]), Stmt::Function(Func::new(tok_to_src(ident("abc")), vec![], Box::new(Stmt::Block(vec![Stmt::Print(Expr::Number(1f64))])))));
+        assert_eq!(expect_parse_statement(vec![Token::Fun, ident("abc"), Token::LeftParen, Token::RightParen, Token::LeftBrace, Token::RightBrace]), Stmt::Function(Func::new(tok_to_src(ident("abc")), vec![], Rc::new(Stmt::Block(vec![])))));
+        assert_eq!(expect_parse_statement(vec![Token::Fun, ident("abc"), Token::LeftParen, ident("a"), Token::RightParen, Token::LeftBrace, Token::RightBrace]), Stmt::Function(Func::new(tok_to_src(ident("abc")), vec![tok_to_src(ident("a"))], Rc::new(Stmt::Block(vec![])))));
+        assert_eq!(expect_parse_statement(vec![Token::Fun, ident("abc"), Token::LeftParen, ident("a"), Token::Comma, ident("b"), Token::RightParen, Token::LeftBrace, Token::RightBrace]), Stmt::Function(Func::new(tok_to_src(ident("abc")), vec![tok_to_src(ident("a")), tok_to_src(ident("b"))], Rc::new(Stmt::Block(vec![])))));
+        assert_eq!(expect_parse_statement(vec![Token::Fun, ident("abc"), Token::LeftParen, Token::RightParen, Token::LeftBrace, Token::Print, Token::Number(1f64), Token::Semicolon, Token::RightBrace]), Stmt::Function(Func::new(tok_to_src(ident("abc")), vec![], Rc::new(Stmt::Block(vec![Stmt::Print(Expr::Number(1f64))])))));
     }
 
     #[test]

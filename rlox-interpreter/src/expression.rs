@@ -1,14 +1,14 @@
 use rlox_scanner::{ SourceToken, Token };
 use rlox_parser::Expr;
 use crate::{
-    interpreter::Environment,
     EvaluateResult,
+    Interpreter,
     RuntimeError,
     RuntimeErrorDescription,
     Value,
 };
 
-pub fn evaluate(environment: &mut Environment, expr: &Expr) -> EvaluateResult<Value> {
+pub fn evaluate(interpreter: &mut Interpreter, expr: &Expr) -> EvaluateResult<Value> {
     match expr {
         Expr::Nil => Ok(Value::Nil),
         Expr::Boolean(value) => Ok(Value::Boolean(*value)),
@@ -16,15 +16,15 @@ pub fn evaluate(environment: &mut Environment, expr: &Expr) -> EvaluateResult<Va
         Expr::String(value) => Ok(Value::String(value.clone())),
 
         Expr::Var(name) => {
-            let value = environment.get(name)?;
+            let value = interpreter.environment().borrow().get(name)?;
 
             Ok((*value).clone())
         },
 
-        Expr::Grouping(expr) => evaluate(environment, expr),
+        Expr::Grouping(expr) => evaluate(interpreter, expr),
 
         Expr::Unary(op, expr) => {
-            let value = evaluate(environment, expr)?;
+            let value = evaluate(interpreter, expr)?;
 
             match &op.token {
                 Token::Minus => {
@@ -37,19 +37,19 @@ pub fn evaluate(environment: &mut Environment, expr: &Expr) -> EvaluateResult<Va
         },
 
         Expr::Logical(left_expr, op, right_expr) => {
-            let left = evaluate(environment, left_expr)?;
+            let left = evaluate(interpreter, left_expr)?;
 
             match &op.token {
-                Token::Or => if left.is_truthy() { Ok(left) } else { evaluate(environment, right_expr) },
-                Token::And => if !left.is_truthy() { Ok(left) } else { evaluate(environment, right_expr) },
+                Token::Or => if left.is_truthy() { Ok(left) } else { evaluate(interpreter, right_expr) },
+                Token::And => if !left.is_truthy() { Ok(left) } else { evaluate(interpreter, right_expr) },
 
                 _ => panic!("Invalid logical operation {:?}", op.token)
             }
         },
 
         Expr::Binary(left_expr, op, right_expr) => {
-            let left = evaluate(environment, left_expr)?;
-            let right = evaluate(environment, right_expr)?;
+            let left = evaluate(interpreter, left_expr)?;
+            let right = evaluate(interpreter, right_expr)?;
 
             match &op.token {
                 Token::Plus => match (left, right) {
@@ -85,11 +85,11 @@ pub fn evaluate(environment: &mut Environment, expr: &Expr) -> EvaluateResult<Va
         },
 
         Expr::Call(callee_expr, paren, argument_exprs) => {
-            let callee = evaluate(environment, callee_expr)?;
+            let callee = evaluate(interpreter, callee_expr)?;
 
             let mut arguments = Vec::new();
             for expr in argument_exprs {
-                let argument = evaluate(environment, expr)?;
+                let argument = evaluate(interpreter, expr)?;
                 arguments.push(argument);
             }
 
@@ -100,13 +100,13 @@ pub fn evaluate(environment: &mut Environment, expr: &Expr) -> EvaluateResult<Va
                 return Err(RuntimeError::new(paren.clone(), RuntimeErrorDescription::UnexpectedNumberOfArguments { expected: function.arity(), provided: arguments.len() }))
             }
 
-            function.call(arguments)
+            function.call(interpreter, arguments)
         },
 
         Expr::Assign(name, expr) => {
-            let value = evaluate(environment, expr)?;
+            let value = evaluate(interpreter, expr)?;
 
-            environment.assign(name, value.clone())?;
+            interpreter.environment().borrow_mut().assign(name, value.clone())?;
 
             Ok(value)
         }
@@ -119,13 +119,14 @@ fn cast_to_number(token: &SourceToken, value: Value) -> Result<f64, RuntimeError
 
 #[cfg(test)]
 mod tests {
-    use rlox_scanner::{ SourceToken };
-    use super::*;
     use std::rc::Rc;
+    use rlox_scanner::{ SourceToken };
+
+    use super::*;
 
     fn evaluate_expect(expr: &Expr) -> Value {
-        let mut environment = Environment::new();
-        evaluate(&mut environment, expr).expect("Failed to evaluate expression")
+        let mut interpreter = Interpreter::new();
+        evaluate(&mut interpreter, expr).expect("Failed to evaluate expression")
     }
 
     fn tok_to_src(t: Token) -> SourceToken {
@@ -157,9 +158,9 @@ mod tests {
 
     #[test]
     fn test_unary_runtime_error() {
-        let mut environment = Environment::new();
+        let mut interpreter = Interpreter::new();
 
-        let result = evaluate(&mut environment, &Expr::Unary(tok_to_src(Token::Minus), Box::new(Expr::Boolean(true))));
+        let result = evaluate(&mut interpreter, &Expr::Unary(tok_to_src(Token::Minus), Box::new(Expr::Boolean(true))));
         assert!(result.is_err());
     }
 
@@ -196,22 +197,22 @@ mod tests {
 
     #[test]
     fn test_binary_runtime_error() {
-        let mut environment = Environment::new();
+        let mut interpreter = Interpreter::new();
 
-        let result = evaluate(&mut environment, &Expr::Binary(Box::new(Expr::Number(8f64)), tok_to_src(Token::Minus), Box::new(Expr::String("cd".into()))));
+        let result = evaluate(&mut interpreter, &Expr::Binary(Box::new(Expr::Number(8f64)), tok_to_src(Token::Minus), Box::new(Expr::String("cd".into()))));
         assert!(result.is_err());
 
-        let result = evaluate(&mut environment, &Expr::Binary(Box::new(Expr::Number(8f64)), tok_to_src(Token::Greater), Box::new(Expr::String("cd".into()))));
+        let result = evaluate(&mut interpreter, &Expr::Binary(Box::new(Expr::Number(8f64)), tok_to_src(Token::Greater), Box::new(Expr::String("cd".into()))));
         assert!(result.is_err());
 
-        let result = evaluate(&mut environment, &Expr::Binary(Box::new(Expr::Number(8f64)), tok_to_src(Token::Slash), Box::new(Expr::Number(0f64))));
+        let result = evaluate(&mut interpreter, &Expr::Binary(Box::new(Expr::Number(8f64)), tok_to_src(Token::Slash), Box::new(Expr::Number(0f64))));
         assert!(result.is_err());
     }
 
     #[test]
     fn test_assign() {
-        let mut environment = Environment::new();
-        environment.define("a".into(), Value::Nil);
+        let mut interpreter = Interpreter::new();
+        interpreter.environment().define("a".into(), Value::Nil);
 
         let a = tok_to_src(Token::Identifier("a".into()));
         evaluate(&mut environment, &Expr::Assign(a.clone(), Box::new(Expr::Boolean(true)))).unwrap();

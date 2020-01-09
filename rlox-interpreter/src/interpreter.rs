@@ -10,12 +10,15 @@ use crate::{
     RuntimeError,
     RuntimeErrorDescription,
     Value,
+
     expression::evaluate,
+    function::FunctionDefinition,
     native,
 };
 
 pub struct Interpreter {
     environment: Rc<RefCell<Environment>>,
+    global_environment: Rc<RefCell<Environment>>,
 }
 
 impl Interpreter {
@@ -24,9 +27,20 @@ impl Interpreter {
 
         native::define_functions(&mut globals);
 
+        let env = Rc::new(RefCell::new(globals));
+
         Interpreter {
-            environment: Rc::new(RefCell::new(globals)),
+            environment: env.clone(),
+            global_environment: env.clone(),
         }
+    }
+
+
+    pub fn environment(&self) -> Rc<RefCell<Environment>> {
+        self.environment.clone()
+    }
+    pub fn global_environment(&self) -> Rc<RefCell<Environment>> {
+        self.global_environment.clone()
     }
 
     pub fn interpret(&mut self, statements: Vec<Stmt>) -> EvaluateResult<()> {
@@ -40,12 +54,20 @@ impl Interpreter {
     fn evaluate_stmt(&mut self, stmt: &Stmt) -> EvaluateResult<()> {
         match stmt {
             Stmt::Expression(expr) => {
-                evaluate(&mut self.environment.borrow_mut(), expr)?;
+                evaluate( self, expr)?;
 
                 Ok(())
             },
+            Stmt::Function(func) => {
+                let definition: FunctionDefinition = func.into();
+                let value = Value::Function(Rc::new(definition));
+
+                self.environment.borrow_mut().define(func.name.lexeme.clone(), value);
+
+                Ok(())
+            }
             Stmt::If(cond, then_branch, else_branch_opt) => {
-                let cond_value = evaluate(&mut self.environment.borrow_mut(), cond)?;
+                let cond_value = evaluate(self, cond)?;
 
                 if cond_value.is_truthy() {
                     self.evaluate_stmt(then_branch)
@@ -56,14 +78,14 @@ impl Interpreter {
                 }
             }
             Stmt::Print(expr) => {
-                let value = evaluate(&mut self.environment.borrow_mut(), expr)?;
+                let value = evaluate(self, expr)?;
                 println!("{}", value);
 
                 Ok(())
             },
             Stmt::Var(name, initializer) => {
                 let value = match initializer {
-                    Some(expr) => evaluate(&mut self.environment.borrow_mut(), expr)?,
+                    Some(expr) => evaluate(self, expr)?,
                     None => Value::Nil,
                 };
 
@@ -72,7 +94,7 @@ impl Interpreter {
                 Ok(())
             },
             Stmt::While(condition, body) => {
-                while evaluate(&mut self.environment.borrow_mut(), condition)?.is_truthy() {
+                while evaluate(self, condition)?.is_truthy() {
                     self.evaluate_stmt(body)?;
                 }
 
@@ -81,12 +103,12 @@ impl Interpreter {
             Stmt::Block(statements) => {
                 let environment= Rc::new(RefCell::new(Environment::new_with_parent(Rc::clone(&self.environment))));
 
-                self.evaluate_block(statements, environment)
+                self.evaluate_block(&statements.iter().collect(), environment)
             }
         }
     }
 
-    fn evaluate_block(&mut self, statements: &Vec<Stmt>, mut environment: Rc<RefCell<Environment>>) -> EvaluateResult<()> {
+    pub fn evaluate_block(&mut self, statements: &Vec<&Stmt>, mut environment: Rc<RefCell<Environment>>) -> EvaluateResult<()> {
         ::std::mem::swap(&mut self.environment, &mut environment);
 
         for statement in statements {
