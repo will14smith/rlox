@@ -1,6 +1,7 @@
 program        -> declaration* EOF;
 
-declaration    -> varDecl
+declaration    -> funDecl
+                | varDecl
                 | statement
                 ;
 
@@ -12,7 +13,12 @@ statement      -> exprStmt
                 | block
                 ;
 
+funDecl        -> "fun" function;
 varDecl        -> "var" IDENTIFIER ( "=" expression )? ";";
+
+function       -> IDENTIFIER "(" parameters? ")" block;
+parameters      -> IDENTIFIER  ( "," IDENTIFIER )*;
+
 exprStmt       -> expression ";";
 ifStmt         -> "if" "(" expression ")" statement ( "else" statement )?;
 forStmt        -> "for" "(" ( varDecl | exprStmt | ";" ) expression? ";" expression? ")" statement;

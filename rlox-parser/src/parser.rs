@@ -1,6 +1,9 @@
-use rlox_scanner::{ SourceToken, Token };
-use crate::{ Expr, Stmt };
 use std::mem::Discriminant;
+use rlox_scanner::{ SourceToken, Token };
+use crate::{
+    Expr,
+    stmt::{ Func, Stmt },
+};
 
 pub struct Parser {
     tokens: Vec<SourceToken>,
@@ -21,6 +24,7 @@ pub enum ParserErrorDescription {
     ExpectedIdentifier(String),
     InvalidAssignmentTarget,
     TooManyArguments,
+    TooManyParameters,
 }
 
 type ParserResult<T> = Result<T, ParserError>;
@@ -47,7 +51,9 @@ impl Parser {
     // statements
     fn declaration(&mut self) -> ParserResult<Stmt> {
         fn inner(parser: &mut Parser) -> ParserResult<Stmt> {
-            if parser.try_consume(Token::Var) {
+            if parser.try_consume(Token::Fun) {
+                parser.function("function").map(Stmt::Function)
+            } else if parser.try_consume(Token::Var) {
                 parser.var_declaration()
             } else {
                 parser.statement()
@@ -191,6 +197,31 @@ impl Parser {
         self.consume(Token::Semicolon, ParserErrorDescription::ExpectedToken(Token::Semicolon, "Expected ';' after value".into()))?;
 
         Ok(Stmt::Expression(value))
+    }
+
+    fn function(&mut self, kind: &str) -> ParserResult<Func> {
+        let name = self.consume_discriminant(::std::mem::discriminant(&Token::Identifier(String::new())), ParserErrorDescription::ExpectedIdentifier(format!("Expected {} name", kind)))?.clone();
+
+        let mut parameters = Vec::new();
+
+        self.consume(Token::LeftParen, ParserErrorDescription::ExpectedToken(Token::LeftParen, format!("Expected '(' after {} name", kind)))?;
+        if !self.check(Token::RightParen) {
+            let parameter = self.consume_discriminant(::std::mem::discriminant(&Token::Identifier(String::new())), ParserErrorDescription::ExpectedIdentifier("Expected parameter name".into()))?;
+            parameters.push(parameter.clone());
+            while self.try_consume(Token::Comma) {
+                if parameters.len() >= 255 {
+                    return Err(self.error(self.peek(), ParserErrorDescription::TooManyParameters));
+                }
+
+                let parameter = self.consume_discriminant(::std::mem::discriminant(&Token::Identifier(String::new())), ParserErrorDescription::ExpectedIdentifier("Expected parameter name".into()))?;
+                parameters.push(parameter.clone());
+            }
+        }
+        self.consume(Token::RightParen, ParserErrorDescription::ExpectedToken(Token::RightParen, "Expected ')' after parameters".into()))?;
+
+        let body = self.statement()?;
+
+        Ok(Func::new(name, parameters, Box::new(body)))
     }
 
     // expressions
@@ -462,6 +493,7 @@ impl Parser {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::stmt::Func;
 
     fn parse_statement(tokens: Vec<Token>) -> ParserResult<Stmt> {
         let mut source_tokens: Vec<SourceToken> = tokens.into_iter()
@@ -497,25 +529,37 @@ mod tests {
         }
     }
 
+    fn ident(s: &str) -> Token {
+        Token::Identifier(s.into())
+    }
+
+    #[test]
+    fn test_fun_declaration() {
+        assert_eq!(expect_parse_statement(vec![Token::Fun, ident("abc"), Token::LeftParen, Token::RightParen, Token::LeftBrace, Token::RightBrace]), Stmt::Function(Func::new(tok_to_src(ident("abc")), vec![], Box::new(Stmt::Block(vec![])))));
+        assert_eq!(expect_parse_statement(vec![Token::Fun, ident("abc"), Token::LeftParen, ident("a"), Token::RightParen, Token::LeftBrace, Token::RightBrace]), Stmt::Function(Func::new(tok_to_src(ident("abc")), vec![tok_to_src(ident("a"))], Box::new(Stmt::Block(vec![])))));
+        assert_eq!(expect_parse_statement(vec![Token::Fun, ident("abc"), Token::LeftParen, ident("a"), Token::Comma, ident("b"), Token::RightParen, Token::LeftBrace, Token::RightBrace]), Stmt::Function(Func::new(tok_to_src(ident("abc")), vec![tok_to_src(ident("a")), tok_to_src(ident("b"))], Box::new(Stmt::Block(vec![])))));
+        assert_eq!(expect_parse_statement(vec![Token::Fun, ident("abc"), Token::LeftParen, Token::RightParen, Token::LeftBrace, Token::Print, Token::Number(1f64), Token::Semicolon, Token::RightBrace]), Stmt::Function(Func::new(tok_to_src(ident("abc")), vec![], Box::new(Stmt::Block(vec![Stmt::Print(Expr::Number(1f64))])))));
+    }
+
     #[test]
     fn test_var_declaration() {
-        assert_eq!(expect_parse_statement(vec![Token::Var, Token::Identifier("abc".into()), Token::Semicolon]), Stmt::Var(tok_to_src(Token::Identifier("abc".into())), None));
-        assert_eq!(expect_parse_statement(vec![Token::Var, Token::Identifier("abc".into()), Token::Equal, Token::Number(123f64), Token::Semicolon]), Stmt::Var(tok_to_src(Token::Identifier("abc".into())), Some(Expr::Number(123f64))));
+        assert_eq!(expect_parse_statement(vec![Token::Var, ident("abc"), Token::Semicolon]), Stmt::Var(tok_to_src(ident("abc")), None));
+        assert_eq!(expect_parse_statement(vec![Token::Var, ident("abc"), Token::Equal, Token::Number(123f64), Token::Semicolon]), Stmt::Var(tok_to_src(ident("abc")), Some(Expr::Number(123f64))));
     }
 
     #[test]
     fn test_for() {
         let empty_for = vec![Token::For, Token::LeftParen, Token::Semicolon, Token::Semicolon, Token::RightParen, Token::Print, Token::Number(2f64), Token::Semicolon];
-        let just_init_for = vec![Token::For, Token::LeftParen, Token::Var, Token::Identifier("a".into()), Token::Semicolon, Token::Semicolon, Token::RightParen, Token::Print, Token::Number(2f64), Token::Semicolon];
+        let just_init_for = vec![Token::For, Token::LeftParen, Token::Var, ident("a"), Token::Semicolon, Token::Semicolon, Token::RightParen, Token::Print, Token::Number(2f64), Token::Semicolon];
         let just_cond_for = vec![Token::For, Token::LeftParen, Token::Semicolon, Token::False, Token::Semicolon, Token::RightParen, Token::Print, Token::Number(2f64), Token::Semicolon];
-        let just_update_for = vec![Token::For, Token::LeftParen, Token::Semicolon, Token::Semicolon, Token::Identifier("a".into()), Token::Equal, Token::False, Token::RightParen, Token::Print, Token::Number(2f64), Token::Semicolon];
-        let all_for = vec![Token::For, Token::LeftParen, Token::Var, Token::Identifier("a".into()), Token::Semicolon, Token::Bang, Token::Identifier("a".into()), Token::Semicolon, Token::Identifier("a".into()), Token::Equal, Token::False, Token::RightParen, Token::Print, Token::Number(2f64), Token::Semicolon];
+        let just_update_for = vec![Token::For, Token::LeftParen, Token::Semicolon, Token::Semicolon, ident("a"), Token::Equal, Token::False, Token::RightParen, Token::Print, Token::Number(2f64), Token::Semicolon];
+        let all_for = vec![Token::For, Token::LeftParen, Token::Var, ident("a"), Token::Semicolon, Token::Bang, ident("a"), Token::Semicolon, ident("a"), Token::Equal, Token::False, Token::RightParen, Token::Print, Token::Number(2f64), Token::Semicolon];
 
         assert_eq!(expect_parse_statement(empty_for),
                    Stmt::While(Expr::Boolean(true), Box::new(Stmt::Print(Expr::Number(2f64)))));
         assert_eq!(expect_parse_statement(just_init_for),
                    Stmt::Block(vec![
-                       Stmt::Var(tok_to_src(Token::Identifier("a".into())), None),
+                       Stmt::Var(tok_to_src(ident("a")), None),
                        Stmt::While(Expr::Boolean(true), Box::new(Stmt::Print(Expr::Number(2f64)))),
                    ]));
         assert_eq!(expect_parse_statement(just_cond_for),
@@ -523,14 +567,14 @@ mod tests {
         assert_eq!(expect_parse_statement(just_update_for),
                    Stmt::While(Expr::Boolean(true), Box::new(Stmt::Block(vec![
                        Stmt::Print(Expr::Number(2f64)),
-                       Stmt::Expression(Expr::Assign(tok_to_src(Token::Identifier("a".into())), Box::new(Expr::Boolean(false))))
+                       Stmt::Expression(Expr::Assign(tok_to_src(ident("a")), Box::new(Expr::Boolean(false))))
                    ]))));
         assert_eq!(expect_parse_statement(all_for),
                    Stmt::Block(vec![
-                       Stmt::Var(tok_to_src(Token::Identifier("a".into())), None),
-                       Stmt::While(Expr::Unary(tok_to_src(Token::Bang), Box::new(Expr::Var(tok_to_src(Token::Identifier("a".into()))))), Box::new(Stmt::Block(vec![
+                       Stmt::Var(tok_to_src(ident("a")), None),
+                       Stmt::While(Expr::Unary(tok_to_src(Token::Bang), Box::new(Expr::Var(tok_to_src(ident("a"))))), Box::new(Stmt::Block(vec![
                            Stmt::Print(Expr::Number(2f64)),
-                           Stmt::Expression(Expr::Assign(tok_to_src(Token::Identifier("a".into())), Box::new(Expr::Boolean(false))))
+                           Stmt::Expression(Expr::Assign(tok_to_src(ident("a")), Box::new(Expr::Boolean(false))))
                        ]))),
                    ]));
     }
@@ -567,7 +611,7 @@ mod tests {
         assert_eq!(expect_parse_expression(vec![Token::Number(123f64)]), Expr::Number(123f64));
         assert_eq!(expect_parse_expression(vec![Token::String("abc".into())]), Expr::String("abc".into()));
 
-        assert_eq!(expect_parse_expression(vec![Token::Identifier("abc".into())]), Expr::Var(tok_to_src(Token::Identifier("abc".into()))));
+        assert_eq!(expect_parse_expression(vec![ident("abc")]), Expr::Var(tok_to_src(ident("abc"))));
 
         assert_eq!(expect_parse_expression(vec![Token::LeftParen, Token::False, Token::RightParen]), Expr::Grouping(Box::new(Expr::Boolean(false))));
     }
@@ -603,15 +647,15 @@ mod tests {
 
     #[test]
     fn test_call() {
-        assert_eq!(expect_parse_expression(vec![Token::Identifier("abc".into()), Token::LeftParen, Token::RightParen]), Expr::Call(Box::new(Expr::Var(tok_to_src(Token::Identifier("abc".into())))), tok_to_src(Token::RightParen), vec![]));
-        assert_eq!(expect_parse_expression(vec![Token::Identifier("abc".into()), Token::LeftParen, Token::Number(123f64), Token::RightParen]), Expr::Call(Box::new(Expr::Var(tok_to_src(Token::Identifier("abc".into())))), tok_to_src(Token::RightParen), vec![Expr::Number(123f64)]));
-        assert_eq!(expect_parse_expression(vec![Token::Identifier("abc".into()), Token::LeftParen, Token::Number(123f64), Token::Comma, Token::Number(456f64), Token::RightParen]), Expr::Call(Box::new(Expr::Var(tok_to_src(Token::Identifier("abc".into())))), tok_to_src(Token::RightParen), vec![Expr::Number(123f64), Expr::Number(456f64)]));
+        assert_eq!(expect_parse_expression(vec![ident("abc"), Token::LeftParen, Token::RightParen]), Expr::Call(Box::new(Expr::Var(tok_to_src(ident("abc")))), tok_to_src(Token::RightParen), vec![]));
+        assert_eq!(expect_parse_expression(vec![ident("abc"), Token::LeftParen, Token::Number(123f64), Token::RightParen]), Expr::Call(Box::new(Expr::Var(tok_to_src(ident("abc")))), tok_to_src(Token::RightParen), vec![Expr::Number(123f64)]));
+        assert_eq!(expect_parse_expression(vec![ident("abc"), Token::LeftParen, Token::Number(123f64), Token::Comma, Token::Number(456f64), Token::RightParen]), Expr::Call(Box::new(Expr::Var(tok_to_src(ident("abc")))), tok_to_src(Token::RightParen), vec![Expr::Number(123f64), Expr::Number(456f64)]));
     }
 
     #[test]
     fn test_assignment() {
-        assert_eq!(expect_parse_expression(vec![Token::Identifier("abc".into()), Token::Equal, Token::Number(123f64)]), Expr::Assign(tok_to_src(Token::Identifier("abc".into())), Box::new(Expr::Number(123f64))));
-        assert_eq!(expect_parse_expression(vec![Token::Identifier("abc".into()), Token::Equal, Token::Identifier("def".into()), Token::Equal, Token::Number(123f64)]), Expr::Assign(tok_to_src(Token::Identifier("abc".into())), Box::new(Expr::Assign(tok_to_src(Token::Identifier("def".into())), Box::new(Expr::Number(123f64))))));
+        assert_eq!(expect_parse_expression(vec![ident("abc"), Token::Equal, Token::Number(123f64)]), Expr::Assign(tok_to_src(ident("abc")), Box::new(Expr::Number(123f64))));
+        assert_eq!(expect_parse_expression(vec![ident("abc"), Token::Equal, ident("def"), Token::Equal, Token::Number(123f64)]), Expr::Assign(tok_to_src(ident("abc")), Box::new(Expr::Assign(tok_to_src(ident("def")), Box::new(Expr::Number(123f64))))));
     }
 
     #[test]

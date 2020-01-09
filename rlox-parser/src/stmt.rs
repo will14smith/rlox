@@ -4,9 +4,27 @@ use crate::Expr;
 #[derive(Debug, PartialEq)]
 pub enum Stmt {
     Expression(Expr),
+    Function(Func),
     If(Expr, Box<Stmt>, Option<Box<Stmt>>),
     Print(Expr),
     Var(SourceToken, Option<Expr>),
     While(Expr, Box<Stmt>),
     Block(Vec<Stmt>),
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Func {
+    pub name: SourceToken,
+    pub parameters: Vec<SourceToken>,
+    pub body: Box<Stmt>,
+}
+
+impl Func {
+    pub fn new(name: SourceToken, parameters: Vec<SourceToken>, body: Box<Stmt>) -> Func {
+        Func {
+            name,
+            parameters,
+            body,
+        }
+    }
 }
