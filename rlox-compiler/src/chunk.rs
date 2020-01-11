@@ -1,11 +1,12 @@
 use std::collections::HashMap;
+use std::rc::Rc;
 use crate::op::{ OpCode, DecodeError };
 use crate::Value;
 
 pub struct Chunk {
     code: Vec<u8>,
     lines: HashMap<usize, usize>,
-    constants: Vec<Value>,
+    constants: Vec<Rc<Value>>,
 }
 
 impl Chunk {
@@ -21,7 +22,7 @@ impl Chunk {
         if self.constants.len() >= 255 {
             Err(String::from("too many local constants"))
         } else {
-            self.constants.push(value);
+            self.constants.push(Rc::new(value));
             Ok((self.constants.len() - 1) as u8)
         }
     }
@@ -42,12 +43,12 @@ impl Chunk {
     pub fn as_bytes(&self) -> ::std::slice::Iter<u8> {
         self.code.iter()
     }
-    pub fn constant(&self, index: u8) -> Result<&Value, String> {
+    pub fn constant(&self, index: u8) -> Result<Rc<Value>, String> {
         let len = self.constants.len() as u8;
         if index >= len {
             Err(format!("invalid constant index {} of {}", index, len))
         } else {
-            Ok(&self.constants[index as usize])
+            Ok(Rc::clone(&self.constants[index as usize]))
         }
     }
     pub fn line(&self, mut offset: usize) -> usize {

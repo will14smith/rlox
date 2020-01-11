@@ -1,5 +1,6 @@
 use std::fmt::{Display, Formatter, Error};
 
+#[derive(Clone)]
 pub enum Value {
     Number(f64),
 }
