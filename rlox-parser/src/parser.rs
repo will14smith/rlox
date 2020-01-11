@@ -15,7 +15,7 @@ pub struct Parser {
 
 #[derive(Debug, PartialEq)]
 pub struct ParserError {
-    pub line: u32,
+    pub line: usize,
     pub location: String,
     pub description: ParserErrorDescription,
 }
@@ -137,7 +137,7 @@ impl Parser {
         };
 
         let condition = if self.check(Token::Semicolon) {
-            Expr::Boolean(true)
+            Expr::Boolean(self.previous().clone(), true)
         } else {
             self.expression()?
         };
@@ -415,12 +415,12 @@ impl Parser {
         let token = self.advance();
 
         match &token.token {
-            Token::False => Ok(Expr::Boolean(false)),
-            Token::True => Ok(Expr::Boolean(true)),
+            Token::False => Ok(Expr::Boolean(token.clone(), false)),
+            Token::True => Ok(Expr::Boolean(token.clone(), true)),
             Token::Nil => Ok(Expr::Nil),
 
-            Token::Number(val) => Ok(Expr::Number(*val)),
-            Token::String(val) => Ok(Expr::String(val.clone())),
+            Token::Number(val) => Ok(Expr::Number(token.clone(), *val)),
+            Token::String(val) => Ok(Expr::String(token.clone(), val.clone())),
 
             Token::Identifier(_) => Ok(Expr::Var(token.clone())),
 
@@ -575,18 +575,28 @@ mod tests {
         Token::Identifier(s.into())
     }
 
+    fn expr_num(n: f64) -> Expr {
+        Expr::Number(tok_to_src(Token::Number(n)), n)
+    }
+    fn expr_bool(b: bool) -> Expr {
+        Expr::Boolean(tok_to_src(if b { Token::True } else { Token::False }), b)
+    }
+    fn expr_str(s: &str) -> Expr {
+        Expr::String(tok_to_src(Token::String(s.into())), s.into())
+    }
+
     #[test]
     fn test_fun_declaration() {
         assert_eq!(expect_parse_statement(vec![Token::Fun, ident("abc"), Token::LeftParen, Token::RightParen, Token::LeftBrace, Token::RightBrace]), Stmt::Function(Func::new(tok_to_src(ident("abc")), vec![], vec![])));
         assert_eq!(expect_parse_statement(vec![Token::Fun, ident("abc"), Token::LeftParen, ident("a"), Token::RightParen, Token::LeftBrace, Token::RightBrace]), Stmt::Function(Func::new(tok_to_src(ident("abc")), vec![tok_to_src(ident("a"))], vec![])));
         assert_eq!(expect_parse_statement(vec![Token::Fun, ident("abc"), Token::LeftParen, ident("a"), Token::Comma, ident("b"), Token::RightParen, Token::LeftBrace, Token::RightBrace]), Stmt::Function(Func::new(tok_to_src(ident("abc")), vec![tok_to_src(ident("a")), tok_to_src(ident("b"))], vec![])));
-        assert_eq!(expect_parse_statement(vec![Token::Fun, ident("abc"), Token::LeftParen, Token::RightParen, Token::LeftBrace, Token::Print, Token::Number(1f64), Token::Semicolon, Token::RightBrace]), Stmt::Function(Func::new(tok_to_src(ident("abc")), vec![], vec![Stmt::Print(Expr::Number(1f64))])));
+        assert_eq!(expect_parse_statement(vec![Token::Fun, ident("abc"), Token::LeftParen, Token::RightParen, Token::LeftBrace, Token::Print, Token::Number(1f64), Token::Semicolon, Token::RightBrace]), Stmt::Function(Func::new(tok_to_src(ident("abc")), vec![], vec![Stmt::Print(expr_num(1f64))])));
     }
 
     #[test]
     fn test_var_declaration() {
         assert_eq!(expect_parse_statement(vec![Token::Var, ident("abc"), Token::Semicolon]), Stmt::Var(tok_to_src(ident("abc")), None));
-        assert_eq!(expect_parse_statement(vec![Token::Var, ident("abc"), Token::Equal, Token::Number(123f64), Token::Semicolon]), Stmt::Var(tok_to_src(ident("abc")), Some(Expr::Number(123f64))));
+        assert_eq!(expect_parse_statement(vec![Token::Var, ident("abc"), Token::Equal, Token::Number(123f64), Token::Semicolon]), Stmt::Var(tok_to_src(ident("abc")), Some(expr_num(123f64))));
     }
 
     #[test]
@@ -598,25 +608,25 @@ mod tests {
         let all_for = vec![Token::For, Token::LeftParen, Token::Var, ident("a"), Token::Semicolon, Token::Bang, ident("a"), Token::Semicolon, ident("a"), Token::Equal, Token::False, Token::RightParen, Token::Print, Token::Number(2f64), Token::Semicolon];
 
         assert_eq!(expect_parse_statement(empty_for),
-                   Stmt::While(Expr::Boolean(true), Box::new(Stmt::Print(Expr::Number(2f64)))));
+                   Stmt::While(expr_bool(true), Box::new(Stmt::Print(expr_num(2f64)))));
         assert_eq!(expect_parse_statement(just_init_for),
                    Stmt::Block(vec![
                        Stmt::Var(tok_to_src(ident("a")), None),
-                       Stmt::While(Expr::Boolean(true), Box::new(Stmt::Print(Expr::Number(2f64)))),
+                       Stmt::While(expr_bool(true), Box::new(Stmt::Print(expr_num(2f64)))),
                    ]));
         assert_eq!(expect_parse_statement(just_cond_for),
-                   Stmt::While(Expr::Boolean(false), Box::new(Stmt::Print(Expr::Number(2f64)))));
+                   Stmt::While(expr_bool(false), Box::new(Stmt::Print(expr_num(2f64)))));
         assert_eq!(expect_parse_statement(just_update_for),
-                   Stmt::While(Expr::Boolean(true), Box::new(Stmt::Block(vec![
-                       Stmt::Print(Expr::Number(2f64)),
-                       Stmt::Expression(Expr::Assign(tok_to_src(ident("a")), Box::new(Expr::Boolean(false))))
+                   Stmt::While(expr_bool(true), Box::new(Stmt::Block(vec![
+                       Stmt::Print(expr_num(2f64)),
+                       Stmt::Expression(Expr::Assign(tok_to_src(ident("a")), Box::new(expr_bool(false))))
                    ]))));
         assert_eq!(expect_parse_statement(all_for),
                    Stmt::Block(vec![
                        Stmt::Var(tok_to_src(ident("a")), None),
                        Stmt::While(Expr::Unary(tok_to_src(Token::Bang), Box::new(Expr::Var(tok_to_src(ident("a"))))), Box::new(Stmt::Block(vec![
-                           Stmt::Print(Expr::Number(2f64)),
-                           Stmt::Expression(Expr::Assign(tok_to_src(ident("a")), Box::new(Expr::Boolean(false))))
+                           Stmt::Print(expr_num(2f64)),
+                           Stmt::Expression(Expr::Assign(tok_to_src(ident("a")), Box::new(expr_bool(false))))
                        ]))),
                    ]));
     }
@@ -624,86 +634,86 @@ mod tests {
     #[test]
     fn test_if() {
         assert_eq!(expect_parse_statement(vec![Token::If, Token::LeftParen, Token::Number(1f64), Token::RightParen, Token::Print, Token::Number(2f64), Token::Semicolon]),
-                   Stmt::If(Expr::Number(1f64), Box::new(Stmt::Print(Expr::Number(2f64))), None));
+                   Stmt::If(expr_num(1f64), Box::new(Stmt::Print(expr_num(2f64))), None));
         assert_eq!(expect_parse_statement(vec![Token::If, Token::LeftParen, Token::Number(1f64), Token::RightParen, Token::Print, Token::Number(2f64), Token::Semicolon, Token::Else, Token::Print, Token::Number(3f64), Token::Semicolon]),
-                   Stmt::If(Expr::Number(1f64), Box::new(Stmt::Print(Expr::Number(2f64))), Some(Box::new(Stmt::Print(Expr::Number(3f64))))));
+                   Stmt::If(expr_num(1f64), Box::new(Stmt::Print(expr_num(2f64))), Some(Box::new(Stmt::Print(expr_num(3f64))))));
     }
 
     #[test]
     fn test_print() {
-        assert_eq!(expect_parse_statement(vec![Token::Print, Token::Number(123f64), Token::Semicolon]), Stmt::Print(Expr::Number(123f64)));
+        assert_eq!(expect_parse_statement(vec![Token::Print, Token::Number(123f64), Token::Semicolon]), Stmt::Print(expr_num(123f64)));
     }
 
     #[test]
     fn test_return() {
         assert_eq!(expect_parse_statement(vec![Token::Return, Token::Semicolon]), Stmt::Return(tok_to_src(Token::Return), None));
-        assert_eq!(expect_parse_statement(vec![Token::Return, Token::Number(123f64), Token::Semicolon]), Stmt::Return(tok_to_src(Token::Return), Some(Expr::Number(123f64))));
+        assert_eq!(expect_parse_statement(vec![Token::Return, Token::Number(123f64), Token::Semicolon]), Stmt::Return(tok_to_src(Token::Return), Some(expr_num(123f64))));
     }
 
     #[test]
     fn test_while() {
-        assert_eq!(expect_parse_statement(vec![Token::While, Token::LeftParen, Token::Number(123f64), Token::RightParen, Token::Print, Token::Number(456f64), Token::Semicolon]), Stmt::While(Expr::Number(123f64), Box::new(Stmt::Print(Expr::Number(456f64)))));
+        assert_eq!(expect_parse_statement(vec![Token::While, Token::LeftParen, Token::Number(123f64), Token::RightParen, Token::Print, Token::Number(456f64), Token::Semicolon]), Stmt::While(expr_num(123f64), Box::new(Stmt::Print(expr_num(456f64)))));
     }
 
     #[test]
     fn test_expression_statement() {
-        assert_eq!(expect_parse_statement(vec![Token::Number(123f64), Token::Semicolon]), Stmt::Expression(Expr::Number(123f64)));
+        assert_eq!(expect_parse_statement(vec![Token::Number(123f64), Token::Semicolon]), Stmt::Expression(expr_num(123f64)));
     }
 
     #[test]
     fn test_primary() {
         assert_eq!(expect_parse_expression(vec![Token::Nil]), Expr::Nil);
-        assert_eq!(expect_parse_expression(vec![Token::True]), Expr::Boolean(true));
-        assert_eq!(expect_parse_expression(vec![Token::False]), Expr::Boolean(false));
+        assert_eq!(expect_parse_expression(vec![Token::True]), expr_bool(true));
+        assert_eq!(expect_parse_expression(vec![Token::False]), expr_bool(false));
 
-        assert_eq!(expect_parse_expression(vec![Token::Number(123f64)]), Expr::Number(123f64));
-        assert_eq!(expect_parse_expression(vec![Token::String("abc".into())]), Expr::String("abc".into()));
+        assert_eq!(expect_parse_expression(vec![Token::Number(123f64)]), expr_num(123f64));
+        assert_eq!(expect_parse_expression(vec![Token::String("abc".into())]), expr_str("abc"));
 
         assert_eq!(expect_parse_expression(vec![ident("abc")]), Expr::Var(tok_to_src(ident("abc"))));
 
-        assert_eq!(expect_parse_expression(vec![Token::LeftParen, Token::False, Token::RightParen]), Expr::Grouping(Box::new(Expr::Boolean(false))));
+        assert_eq!(expect_parse_expression(vec![Token::LeftParen, Token::False, Token::RightParen]), Expr::Grouping(Box::new(expr_bool(false))));
     }
 
     #[test]
     fn test_unary() {
-        assert_eq!(expect_parse_expression(vec![Token::Bang, Token::False]), Expr::Unary(tok_to_src(Token::Bang), Box::new(Expr::Boolean(false))));
-        assert_eq!(expect_parse_expression(vec![Token::Minus, Token::Number(123f64)]), Expr::Unary(tok_to_src(Token::Minus), Box::new(Expr::Number(123f64))));
+        assert_eq!(expect_parse_expression(vec![Token::Bang, Token::False]), Expr::Unary(tok_to_src(Token::Bang), Box::new(expr_bool(false))));
+        assert_eq!(expect_parse_expression(vec![Token::Minus, Token::Number(123f64)]), Expr::Unary(tok_to_src(Token::Minus), Box::new(expr_num(123f64))));
     }
 
     #[test]
     fn test_binary() {
         for operator in vec![Token::Slash, Token::Star, Token::Minus, Token::Plus, Token::Greater, Token::GreaterEqual, Token::Less, Token::LessEqual, Token::BangEqual, Token::EqualEqual] {
             assert_eq!(expect_parse_expression(vec![Token::Number(123f64), operator.clone(), Token::Number(456f64)]),
-                       Expr::Binary(Box::new(Expr::Number(123f64)), tok_to_src(operator.clone()), Box::new(Expr::Number(456f64))));
+                       Expr::Binary(Box::new(expr_num(123f64)), tok_to_src(operator.clone()), Box::new(expr_num(456f64))));
             assert_eq!(expect_parse_expression(vec![Token::Number(123f64), operator.clone(), Token::Number(456f64), operator.clone(), Token::Number(789f64)]),
-                       Expr::Binary(Box::new(Expr::Binary(Box::new(Expr::Number(123f64)), tok_to_src(operator.clone()), Box::new(Expr::Number(456f64)))), tok_to_src(operator), Box::new(Expr::Number(789f64))));
+                       Expr::Binary(Box::new(Expr::Binary(Box::new(expr_num(123f64)), tok_to_src(operator.clone()), Box::new(expr_num(456f64)))), tok_to_src(operator), Box::new(expr_num(789f64))));
         }
 
         assert_eq!(expect_parse_expression(vec![Token::Number(123f64), Token::Plus, Token::Number(456f64), Token::Star, Token::Number(789f64)]),
-                   Expr::Binary(Box::new(Expr::Number(123f64)), tok_to_src(Token::Plus), Box::new(Expr::Binary(Box::new(Expr::Number(456f64)), tok_to_src(Token::Star), Box::new(Expr::Number(789f64))))));
+                   Expr::Binary(Box::new(expr_num(123f64)), tok_to_src(Token::Plus), Box::new(Expr::Binary(Box::new(expr_num(456f64)), tok_to_src(Token::Star), Box::new(expr_num(789f64))))));
     }
 
     #[test]
     fn test_logical() {
         for operator in vec![Token::And, Token::Or] {
             assert_eq!(expect_parse_expression(vec![Token::False, operator.clone(), Token::True]),
-                       Expr::Logical(Box::new(Expr::Boolean(false)), tok_to_src(operator.clone()), Box::new(Expr::Boolean(true))));
+                       Expr::Logical(Box::new(expr_bool(false)), tok_to_src(operator.clone()), Box::new(expr_bool(true))));
             assert_eq!(expect_parse_expression(vec![Token::False, operator.clone(), Token::True, operator.clone(), Token::True]),
-                       Expr::Logical(Box::new(Expr::Logical(Box::new(Expr::Boolean(false)), tok_to_src(operator.clone()), Box::new(Expr::Boolean(true)))), tok_to_src(operator), Box::new(Expr::Boolean(true))));
+                       Expr::Logical(Box::new(Expr::Logical(Box::new(expr_bool(false)), tok_to_src(operator.clone()), Box::new(expr_bool(true)))), tok_to_src(operator), Box::new(expr_bool(true))));
         }
     }
 
     #[test]
     fn test_call() {
         assert_eq!(expect_parse_expression(vec![ident("abc"), Token::LeftParen, Token::RightParen]), Expr::Call(Box::new(Expr::Var(tok_to_src(ident("abc")))), tok_to_src(Token::RightParen), vec![]));
-        assert_eq!(expect_parse_expression(vec![ident("abc"), Token::LeftParen, Token::Number(123f64), Token::RightParen]), Expr::Call(Box::new(Expr::Var(tok_to_src(ident("abc")))), tok_to_src(Token::RightParen), vec![Expr::Number(123f64)]));
-        assert_eq!(expect_parse_expression(vec![ident("abc"), Token::LeftParen, Token::Number(123f64), Token::Comma, Token::Number(456f64), Token::RightParen]), Expr::Call(Box::new(Expr::Var(tok_to_src(ident("abc")))), tok_to_src(Token::RightParen), vec![Expr::Number(123f64), Expr::Number(456f64)]));
+        assert_eq!(expect_parse_expression(vec![ident("abc"), Token::LeftParen, Token::Number(123f64), Token::RightParen]), Expr::Call(Box::new(Expr::Var(tok_to_src(ident("abc")))), tok_to_src(Token::RightParen), vec![expr_num(123f64)]));
+        assert_eq!(expect_parse_expression(vec![ident("abc"), Token::LeftParen, Token::Number(123f64), Token::Comma, Token::Number(456f64), Token::RightParen]), Expr::Call(Box::new(Expr::Var(tok_to_src(ident("abc")))), tok_to_src(Token::RightParen), vec![expr_num(123f64), expr_num(456f64)]));
     }
 
     #[test]
     fn test_assignment() {
-        assert_eq!(expect_parse_expression(vec![ident("abc"), Token::Equal, Token::Number(123f64)]), Expr::Assign(tok_to_src(ident("abc")), Box::new(Expr::Number(123f64))));
-        assert_eq!(expect_parse_expression(vec![ident("abc"), Token::Equal, ident("def"), Token::Equal, Token::Number(123f64)]), Expr::Assign(tok_to_src(ident("abc")), Box::new(Expr::Assign(tok_to_src(ident("def")), Box::new(Expr::Number(123f64))))));
+        assert_eq!(expect_parse_expression(vec![ident("abc"), Token::Equal, Token::Number(123f64)]), Expr::Assign(tok_to_src(ident("abc")), Box::new(expr_num(123f64))));
+        assert_eq!(expect_parse_expression(vec![ident("abc"), Token::Equal, ident("def"), Token::Equal, Token::Number(123f64)]), Expr::Assign(tok_to_src(ident("abc")), Box::new(Expr::Assign(tok_to_src(ident("def")), Box::new(expr_num(123f64))))));
     }
 
     #[test]

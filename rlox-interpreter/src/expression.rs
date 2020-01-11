@@ -11,9 +11,9 @@ use crate::{
 pub fn evaluate(interpreter: &mut Interpreter, expr: &Expr) -> EvaluateResult<Value> {
     match expr {
         Expr::Nil => Ok(Value::Nil),
-        Expr::Boolean(value) => Ok(Value::Boolean(*value)),
-        Expr::Number(value) => Ok(Value::Number(*value)),
-        Expr::String(value) => Ok(Value::String(value.clone())),
+        Expr::Boolean(_, value) => Ok(Value::Boolean(*value)),
+        Expr::Number(_, value) => Ok(Value::Number(*value)),
+        Expr::String(_, value) => Ok(Value::String(value.clone())),
 
         Expr::Var(name) => {
             let value = interpreter.environment().borrow().get(name)?;
@@ -137,48 +137,58 @@ mod tests {
         }
     }
 
+    fn expr_num(n: f64) -> Expr {
+        Expr::Number(tok_to_src(Token::Number(n)), n)
+    }
+    fn expr_bool(b: bool) -> Expr {
+        Expr::Boolean(tok_to_src(if b { Token::True } else { Token::False }), b)
+    }
+    fn expr_str(s: &str) -> Expr {
+        Expr::String(tok_to_src(Token::String(s.into())), s.into())
+    }
+    
     #[test]
     fn test_literal() {
         assert_eq!(evaluate_expect(&Expr::Nil), Value::Nil);
-        assert_eq!(evaluate_expect(&Expr::Boolean(true)), Value::Boolean(true));
-        assert_eq!(evaluate_expect(&Expr::Number(123f64)), Value::Number(123f64));
-        assert_eq!(evaluate_expect(&Expr::String("abc".into())), Value::String("abc".into()));
+        assert_eq!(evaluate_expect(&expr_bool(true)), Value::Boolean(true));
+        assert_eq!(evaluate_expect(&expr_num(123f64)), Value::Number(123f64));
+        assert_eq!(evaluate_expect(&expr_str("abc".into())), Value::String("abc".into()));
     }
 
     #[test]
     fn test_grouping() {
-        assert_eq!(evaluate_expect(&Expr::Grouping(Box::new(Expr::Boolean(true)))), Value::Boolean(true));
+        assert_eq!(evaluate_expect(&Expr::Grouping(Box::new(expr_bool(true)))), Value::Boolean(true));
     }
 
     #[test]
     fn test_unary() {
-        assert_eq!(evaluate_expect(&Expr::Unary(tok_to_src(Token::Minus), Box::new(Expr::Number(123f64)))), Value::Number(-123f64));
-        assert_eq!(evaluate_expect(&Expr::Unary(tok_to_src(Token::Bang), Box::new(Expr::Boolean(true)))), Value::Boolean(false));
+        assert_eq!(evaluate_expect(&Expr::Unary(tok_to_src(Token::Minus), Box::new(expr_num(123f64)))), Value::Number(-123f64));
+        assert_eq!(evaluate_expect(&Expr::Unary(tok_to_src(Token::Bang), Box::new(expr_bool(true)))), Value::Boolean(false));
     }
 
     #[test]
     fn test_unary_runtime_error() {
         let mut interpreter = Interpreter::new();
 
-        let result = evaluate(&mut interpreter, &Expr::Unary(tok_to_src(Token::Minus), Box::new(Expr::Boolean(true))));
+        let result = evaluate(&mut interpreter, &Expr::Unary(tok_to_src(Token::Minus), Box::new(expr_bool(true))));
         assert!(result.is_err());
     }
 
     #[test]
     fn test_binary() {
-        assert_eq!(evaluate_expect(&Expr::Binary(Box::new(Expr::Number(8f64)), tok_to_src(Token::Plus), Box::new(Expr::Number(4f64)))), Value::Number(12f64));
-        assert_eq!(evaluate_expect(&Expr::Binary(Box::new(Expr::Number(8f64)), tok_to_src(Token::Minus), Box::new(Expr::Number(4f64)))), Value::Number(4f64));
-        assert_eq!(evaluate_expect(&Expr::Binary(Box::new(Expr::Number(8f64)), tok_to_src(Token::Star), Box::new(Expr::Number(4f64)))), Value::Number(32f64));
-        assert_eq!(evaluate_expect(&Expr::Binary(Box::new(Expr::Number(8f64)), tok_to_src(Token::Slash), Box::new(Expr::Number(4f64)))), Value::Number(2f64));
+        assert_eq!(evaluate_expect(&Expr::Binary(Box::new(expr_num(8f64)), tok_to_src(Token::Plus), Box::new(expr_num(4f64)))), Value::Number(12f64));
+        assert_eq!(evaluate_expect(&Expr::Binary(Box::new(expr_num(8f64)), tok_to_src(Token::Minus), Box::new(expr_num(4f64)))), Value::Number(4f64));
+        assert_eq!(evaluate_expect(&Expr::Binary(Box::new(expr_num(8f64)), tok_to_src(Token::Star), Box::new(expr_num(4f64)))), Value::Number(32f64));
+        assert_eq!(evaluate_expect(&Expr::Binary(Box::new(expr_num(8f64)), tok_to_src(Token::Slash), Box::new(expr_num(4f64)))), Value::Number(2f64));
 
-        assert_eq!(evaluate_expect(&Expr::Binary(Box::new(Expr::String("ab".into())), tok_to_src(Token::Plus), Box::new(Expr::String("cd".into())))), Value::String("abcd".into()));
-        assert_eq!(evaluate_expect(&Expr::Binary(Box::new(Expr::String("ab".into())), tok_to_src(Token::Plus), Box::new(Expr::Number(34f64)))), Value::String("ab34".into()));
-        assert_eq!(evaluate_expect(&Expr::Binary(Box::new(Expr::Number(12f64)), tok_to_src(Token::Plus), Box::new(Expr::String("cd".into())))), Value::String("12cd".into()));
+        assert_eq!(evaluate_expect(&Expr::Binary(Box::new(expr_str("ab".into())), tok_to_src(Token::Plus), Box::new(expr_str("cd".into())))), Value::String("abcd".into()));
+        assert_eq!(evaluate_expect(&Expr::Binary(Box::new(expr_str("ab".into())), tok_to_src(Token::Plus), Box::new(expr_num(34f64)))), Value::String("ab34".into()));
+        assert_eq!(evaluate_expect(&Expr::Binary(Box::new(expr_num(12f64)), tok_to_src(Token::Plus), Box::new(expr_str("cd".into())))), Value::String("12cd".into()));
 
         fn test_comparison(token: Token, lt: bool, eq: bool, gt: bool) {
-            assert_eq!(evaluate_expect(&Expr::Binary(Box::new(Expr::Number(4f64)), tok_to_src(token.clone()), Box::new(Expr::Number(8f64)))), Value::Boolean(lt));
-            assert_eq!(evaluate_expect(&Expr::Binary(Box::new(Expr::Number(4f64)), tok_to_src(token.clone()), Box::new(Expr::Number(4f64)))), Value::Boolean(eq));
-            assert_eq!(evaluate_expect(&Expr::Binary(Box::new(Expr::Number(8f64)), tok_to_src(token.clone()), Box::new(Expr::Number(4f64)))), Value::Boolean(gt));
+            assert_eq!(evaluate_expect(&Expr::Binary(Box::new(expr_num(4f64)), tok_to_src(token.clone()), Box::new(expr_num(8f64)))), Value::Boolean(lt));
+            assert_eq!(evaluate_expect(&Expr::Binary(Box::new(expr_num(4f64)), tok_to_src(token.clone()), Box::new(expr_num(4f64)))), Value::Boolean(eq));
+            assert_eq!(evaluate_expect(&Expr::Binary(Box::new(expr_num(8f64)), tok_to_src(token.clone()), Box::new(expr_num(4f64)))), Value::Boolean(gt));
         }
 
         test_comparison(Token::Greater, false, false, true);
@@ -186,26 +196,26 @@ mod tests {
         test_comparison(Token::Less, true, false, false);
         test_comparison(Token::LessEqual, true, true, false);
 
-        assert_eq!(evaluate_expect(&Expr::Binary(Box::new(Expr::Number(4f64)), tok_to_src(Token::EqualEqual), Box::new(Expr::Number(4f64)))), Value::Boolean(true));
-        assert_eq!(evaluate_expect(&Expr::Binary(Box::new(Expr::Number(4f64)), tok_to_src(Token::EqualEqual), Box::new(Expr::Number(8f64)))), Value::Boolean(false));
-        assert_eq!(evaluate_expect(&Expr::Binary(Box::new(Expr::String("ab".into())), tok_to_src(Token::EqualEqual), Box::new(Expr::String("ab".into())))), Value::Boolean(true));
-        assert_eq!(evaluate_expect(&Expr::Binary(Box::new(Expr::String("ab".into())), tok_to_src(Token::EqualEqual), Box::new(Expr::String("cd".into())))), Value::Boolean(false));
-        assert_eq!(evaluate_expect(&Expr::Binary(Box::new(Expr::Boolean(true)), tok_to_src(Token::EqualEqual), Box::new(Expr::Boolean(true)))), Value::Boolean(true));
-        assert_eq!(evaluate_expect(&Expr::Binary(Box::new(Expr::Boolean(true)), tok_to_src(Token::EqualEqual), Box::new(Expr::Boolean(false)))), Value::Boolean(false));
-        assert_eq!(evaluate_expect(&Expr::Binary(Box::new(Expr::String("ab".into())), tok_to_src(Token::EqualEqual), Box::new(Expr::Number(4f64)))), Value::Boolean(false));
+        assert_eq!(evaluate_expect(&Expr::Binary(Box::new(expr_num(4f64)), tok_to_src(Token::EqualEqual), Box::new(expr_num(4f64)))), Value::Boolean(true));
+        assert_eq!(evaluate_expect(&Expr::Binary(Box::new(expr_num(4f64)), tok_to_src(Token::EqualEqual), Box::new(expr_num(8f64)))), Value::Boolean(false));
+        assert_eq!(evaluate_expect(&Expr::Binary(Box::new(expr_str("ab".into())), tok_to_src(Token::EqualEqual), Box::new(expr_str("ab".into())))), Value::Boolean(true));
+        assert_eq!(evaluate_expect(&Expr::Binary(Box::new(expr_str("ab".into())), tok_to_src(Token::EqualEqual), Box::new(expr_str("cd".into())))), Value::Boolean(false));
+        assert_eq!(evaluate_expect(&Expr::Binary(Box::new(expr_bool(true)), tok_to_src(Token::EqualEqual), Box::new(expr_bool(true)))), Value::Boolean(true));
+        assert_eq!(evaluate_expect(&Expr::Binary(Box::new(expr_bool(true)), tok_to_src(Token::EqualEqual), Box::new(expr_bool(false)))), Value::Boolean(false));
+        assert_eq!(evaluate_expect(&Expr::Binary(Box::new(expr_str("ab".into())), tok_to_src(Token::EqualEqual), Box::new(expr_num(4f64)))), Value::Boolean(false));
     }
 
     #[test]
     fn test_binary_runtime_error() {
         let mut interpreter = Interpreter::new();
 
-        let result = evaluate(&mut interpreter, &Expr::Binary(Box::new(Expr::Number(8f64)), tok_to_src(Token::Minus), Box::new(Expr::String("cd".into()))));
+        let result = evaluate(&mut interpreter, &Expr::Binary(Box::new(expr_num(8f64)), tok_to_src(Token::Minus), Box::new(expr_str("cd".into()))));
         assert!(result.is_err());
 
-        let result = evaluate(&mut interpreter, &Expr::Binary(Box::new(Expr::Number(8f64)), tok_to_src(Token::Greater), Box::new(Expr::String("cd".into()))));
+        let result = evaluate(&mut interpreter, &Expr::Binary(Box::new(expr_num(8f64)), tok_to_src(Token::Greater), Box::new(expr_str("cd".into()))));
         assert!(result.is_err());
 
-        let result = evaluate(&mut interpreter, &Expr::Binary(Box::new(Expr::Number(8f64)), tok_to_src(Token::Slash), Box::new(Expr::Number(0f64))));
+        let result = evaluate(&mut interpreter, &Expr::Binary(Box::new(expr_num(8f64)), tok_to_src(Token::Slash), Box::new(expr_num(0f64))));
         assert!(result.is_err());
     }
 
@@ -215,11 +225,11 @@ mod tests {
         interpreter.environment().borrow_mut().define("a".into(), Value::Nil);
 
         let a = tok_to_src(Token::Identifier("a".into()));
-        evaluate(&mut interpreter, &Expr::Assign(a.clone(), Box::new(Expr::Boolean(true)))).unwrap();
+        evaluate(&mut interpreter, &Expr::Assign(a.clone(), Box::new(expr_bool(true)))).unwrap();
 
         assert_eq!(interpreter.environment().borrow().get(&a), Ok(Rc::new(Value::Boolean(true))));
 
-        let result = evaluate(&mut interpreter, &Expr::Assign(tok_to_src(Token::Identifier("b".into())), Box::new(Expr::Boolean(true))));
+        let result = evaluate(&mut interpreter, &Expr::Assign(tok_to_src(Token::Identifier("b".into())), Box::new(expr_bool(true))));
         assert!(result.is_err());
 
     }

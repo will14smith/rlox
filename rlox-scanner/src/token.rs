@@ -26,7 +26,7 @@ pub enum Token {
 pub struct SourceToken {
     pub token: Token,
     pub lexeme: String,
-    pub line: u32,
+    pub line: usize,
 }
 
 impl Default for SourceToken {

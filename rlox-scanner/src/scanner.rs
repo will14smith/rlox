@@ -10,7 +10,7 @@ pub struct ScannerIterator<'a> {
     start: usize,
     current: usize,
 
-    line: u32,
+    line: usize,
 }
 
 type ScanResult = Result<SourceToken, ScannerError>;
@@ -22,7 +22,7 @@ pub struct ScannerError {
     pub start: usize,
     pub current: usize,
 
-    pub line: u32,
+    pub line: usize,
 }
 #[derive(Debug, PartialEq)]
 pub enum ScannerErrorType {

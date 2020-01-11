@@ -10,8 +10,8 @@ pub enum Expr {
     Grouping(Box<Expr>),
 
     Var(SourceToken),
-    String(String),
-    Number(f64),
-    Boolean(bool),
+    String(SourceToken, String),
+    Number(SourceToken, f64),
+    Boolean(SourceToken, bool),
     Nil,
 }
