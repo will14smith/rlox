@@ -1,6 +1,6 @@
 use std::io::{ self, Write };
 use rlox_scanner::{ Scanner, ScannerError, Token };
-use rlox_parser::{ Parser, ParserError };
+use rlox_parser::{ Parser, ParserError, StmtParser };
 use rlox_interpreter::{ Interpreter, RuntimeError as InterpreterError };
 
 #[derive(Debug)]
@@ -44,6 +44,7 @@ fn run(interpreter: &mut Interpreter, source: &String) -> Result<(), ReplError> 
     }
 
     let mut parser = Parser::new(tokens);
+    let mut parser = StmtParser::new(&mut parser);
     let statements = parser.parse();
 
     for result in statements {

@@ -1,5 +1,5 @@
 use rlox_scanner::{ Scanner, ScannerError, Token };
-use rlox_parser::{ Parser, ParserError };
+use rlox_parser::{ Parser, ParserError, StmtParser };
 use rlox_interpreter::{ Interpreter, RuntimeError as InterpreterError };
 
 #[derive(Debug)]
@@ -53,6 +53,7 @@ fn run_file(file_name: &String) -> Result<(), i32> {
     }
 
     let mut parser = Parser::new(tokens);
+    let mut parser = StmtParser::new(&mut parser);
     let mut statements = Vec::new();
     for result in parser.parse() {
         let result = result.map_err(RloxError::Parser);
