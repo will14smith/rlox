@@ -4,4 +4,9 @@ version = "0.1.0"
 authors = ["Will Smith <will@toxon.co.uk>"]
 edition = "2018"
 
+[features]
+default = ["trace_execution"]
+
+trace_execution = []
+
 [dependencies]

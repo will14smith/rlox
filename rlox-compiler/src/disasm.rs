@@ -1,17 +1,16 @@
 use std::io::Write;
-use crate::{
-    chunk::Chunk,
-    op,
-};
+use crate::chunk::Chunk;
+use crate::op::DecodeError;
+use crate::OpCode;
 
 pub fn disasm(w: &mut dyn Write, chunk: &Chunk, name: &str) -> std::io::Result<()> {
     writeln!(w, "== {} ==", name)?;
 
-    let mut iter = chunk.iter().enumerate();
+    let mut offset = 0;
     loop {
-        let is_done = disasm_instrument(w, &chunk, &mut iter)?;
-
-        if is_done {
+        if let Some(next_offset) = disassemble_instruction(w, &chunk, offset)? {
+            offset = next_offset;
+        } else {
             break;
         }
     }
@@ -19,51 +18,46 @@ pub fn disasm(w: &mut dyn Write, chunk: &Chunk, name: &str) -> std::io::Result<(
     Ok(())
 }
 
-pub fn disasm_instrument(w: &mut dyn Write, chunk: &Chunk, iter: &mut dyn std::iter::Iterator<Item=(usize, &u8)>) -> std::io::Result<bool> {
-    let op = iter.next();
+fn write_instruction_header(w: &mut dyn Write, chunk: &Chunk, offset: usize) -> std::io::Result<()> {
+    write!(w, "{:#06x} ", offset)?;
+    let line = chunk.line(offset);
+    let previous_line = if offset > 0 { Some(chunk.line(offset - 1)) } else { None };
 
-    match op {
-        Some((offset, op)) => {
-            write!(w, "{:#06x} ", offset)?;
-            let line = chunk.line(offset);
-            let previous_line = if offset > 0 { Some(chunk.line(offset - 1)) } else { None };
+    if Some(line) == previous_line {
+        write!(w, "   | ")
+    } else {
+        write!(w, "{:4} ", line)
+    }
+}
 
-            if Some(line) == previous_line {
-                write!(w, "   | ")?;
-            } else {
-                write!(w, "{:4} ", line)?;
-            }
+pub fn disassemble_instruction(w: &mut dyn Write, chunk: &Chunk, offset: usize) -> std::io::Result<Option<usize>> {
+    match chunk.decode(offset) {
+        Ok((op, next_offset)) => {
+            write_instruction_header(w, chunk, offset)?;
 
-            match *op {
-                op::OP_CONSTANT => {
-                    let index = iter.next();
-
-                    match index {
-                        Some((_, index)) => {
-                            let value = chunk.constant(*index);
-                            match value {
-                                Ok(value) => writeln!(w, "OP_CONSTANT         {} '{}'", index, value)?,
-                                Err(err) =>  writeln!(w, "OP_CONSTANT         {} '{}'", index, err)?,
-                            }
-                        },
-                        None => {
-                            writeln!(w, "OP_CONSTANT <invalid EOF>")?;
-                            return Ok(true)
-                        }
+            match op {
+                OpCode::Constant(index) => {
+                    let value = chunk.constant(index);
+                    match value {
+                        Ok(value) => writeln!(w, "OP_CONSTANT         {} '{}'", index, value)?,
+                        Err(err) =>  writeln!(w, "OP_CONSTANT         {} '{}'", index, err)?,
                     }
                 },
+                OpCode::Return => writeln!(w, "OP_RETURN")?,
 
-                op::OP_RETURN => {
-                    writeln!(w, "OP_RETURN")?
-                },
-
-                _ => writeln!(w, "Unknown opcode {}", op)?,
+                OpCode::Unknown(val) => writeln!(w, "Unknown opcode {}", val)?,
             }
 
-            Ok(false)
+            Ok(Some(next_offset))
         },
-        None => {
-            Ok(true)
+
+        Err(DecodeError::EOF) => Ok(None),
+        Err(err) => {
+            write_instruction_header(w, chunk, offset)?;
+            writeln!(w, "Error decoding instruction {:?}", err)?;
+
+            // TODO?
+            Ok(Some(offset + 1))
         }
     }
 }

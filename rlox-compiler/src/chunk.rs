@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use crate::op::OpCode;
+use crate::op::{ OpCode, DecodeError };
 use crate::Value;
 
 pub struct Chunk {
@@ -27,12 +27,19 @@ impl Chunk {
     }
 
     pub fn add(&mut self, op: OpCode, line: usize) {
-        let mut bytes = op.as_bytes();
+        let mut bytes = op.encode();
         self.lines.insert(self.code.len(), line);
         self.code.append(&mut bytes);
     }
 
-    pub fn iter(&self) -> ::std::slice::Iter<u8> {
+    pub fn decode(&self, offset: usize) -> Result<(OpCode, usize), DecodeError> {
+        if offset >= self.code.len() {
+            Err(DecodeError::EOF)
+        } else {
+            OpCode::decode(&self.code[offset..])
+        }
+    }
+    pub fn as_bytes(&self) -> ::std::slice::Iter<u8> {
         self.code.iter()
     }
     pub fn constant(&self, index: u8) -> Result<&Value, String> {
