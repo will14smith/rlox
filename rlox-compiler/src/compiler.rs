@@ -1,0 +1,74 @@
+use rlox_parser::Expr;
+use crate::{Chunk, Value, OpCode};
+use rlox_scanner::Token;
+
+pub struct Compiler<'a> {
+    chunk: &'a mut Chunk,
+}
+
+#[derive(Debug)]
+pub enum CompilerError {
+    TooManyConstants,
+}
+
+impl<'a> Compiler<'a> {
+    pub fn new(chunk: &'a mut Chunk) -> Compiler<'a> {
+        Compiler {
+            chunk,
+        }
+    }
+}
+
+impl<'a> Compiler<'a> {
+    pub fn compile(&mut self, expr: Expr) -> Result<(), CompilerError> {
+        self.compile_expr(expr)?;
+
+        self.chunk.add(OpCode::Return, 0);
+
+        Ok(())
+    }
+
+    fn compile_expr(&mut self, expr: Expr) -> Result<(), CompilerError> {
+        match expr {
+            Expr::Assign(_, _) => unimplemented!(),
+            Expr::Binary(left, op, right) => {
+                self.compile_expr(*left)?;
+                self.compile_expr(*right)?;
+
+                match &op.token {
+                    Token::Plus => self.chunk.add(OpCode::Add, op.line),
+                    Token::Minus => self.chunk.add(OpCode::Subtract, op.line),
+                    Token::Star => self.chunk.add(OpCode::Multiply, op.line),
+                    Token::Slash => self.chunk.add(OpCode::Divide, op.line),
+
+                    _ => panic!("Invalid binary operation {:?}", op.token)
+                }
+
+                Ok(())
+            },
+            Expr::Call(_, _, _) => unimplemented!(),
+            Expr::Logical(_, _, _) => unimplemented!(),
+            Expr::Unary(op, value) => {
+                self.compile_expr(*value)?;
+
+                match &op.token {
+                    Token::Minus => self.chunk.add(OpCode::Negate, op.line),
+
+                    _ => panic!("Invalid unary operation {:?}", op.token)
+                }
+
+                Ok(())
+            },
+            Expr::Grouping(_) => unimplemented!(),
+            Expr::Var(_) => unimplemented!(),
+            Expr::String(_, _) => unimplemented!(),
+            Expr::Number(token, value) => {
+                let constant = self.chunk.add_constant(Value::Number(value)).map_err(|_| CompilerError::TooManyConstants)?;
+                self.chunk.add(OpCode::Constant(constant), token.line);
+                Ok(())
+            },
+            Expr::Boolean(_, _) => unimplemented!(),
+            Expr::Nil => unimplemented!(),
+        }
+    }
+}

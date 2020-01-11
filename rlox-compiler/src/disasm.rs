@@ -3,21 +3,6 @@ use crate::chunk::Chunk;
 use crate::op::DecodeError;
 use crate::OpCode;
 
-pub fn disasm(w: &mut dyn Write, chunk: &Chunk, name: &str) -> std::io::Result<()> {
-    writeln!(w, "== {} ==", name)?;
-
-    let mut offset = 0;
-    loop {
-        if let Some(next_offset) = disassemble_instruction(w, &chunk, offset)? {
-            offset = next_offset;
-        } else {
-            break;
-        }
-    }
-
-    Ok(())
-}
-
 fn write_instruction_header(w: &mut dyn Write, chunk: &Chunk, offset: usize) -> std::io::Result<()> {
     write!(w, "{:#06x} ", offset)?;
     let line = chunk.line(offset);

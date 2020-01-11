@@ -10,3 +10,5 @@ default = ["trace_execution"]
 trace_execution = []
 
 [dependencies]
+rlox-scanner = { path = "../rlox-scanner" }
+rlox-parser = { path = "../rlox-parser" }

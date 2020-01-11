@@ -267,7 +267,7 @@ impl Parser {
     }
 
     // expressions
-    fn expression(&mut self) -> ParserResult<Expr> {
+    pub fn expression(&mut self) -> ParserResult<Expr> {
         self.assignment()
     }
 
