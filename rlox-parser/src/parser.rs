@@ -1,6 +1,5 @@
 use std::{
     mem::Discriminant,
-    rc::Rc,
 };
 use rlox_scanner::{ SourceToken, Token };
 use crate::{
@@ -147,7 +146,7 @@ impl Parser {
         Ok(body)
     }
 
-        fn if_statement(&mut self) -> ParserResult<Stmt> {
+    fn if_statement(&mut self) -> ParserResult<Stmt> {
         // if keyword is already consumed
         self.consume(Token::LeftParen, ParserErrorDescription::ExpectedToken(Token::LeftParen, "Expected '(' after 'if'".into()))?;
         let condition = self.expression()?;
@@ -238,9 +237,14 @@ impl Parser {
         }
         self.consume(Token::RightParen, ParserErrorDescription::ExpectedToken(Token::RightParen, "Expected ')' after parameters".into()))?;
 
-        let body = self.statement()?;
+        let body = match self.statement()? {
+            Stmt::Block(stmts) => {
+                stmts
+            },
+            stmt => vec![stmt]
+        };
 
-        Ok(Func::new(name, parameters, Rc::new(body)))
+        Ok(Func::new(name, parameters, body))
     }
 
     // expressions

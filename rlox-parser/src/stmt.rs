@@ -1,8 +1,7 @@
-use std::rc::Rc;
 use rlox_scanner::SourceToken;
 use crate::Expr;
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Stmt {
     Expression(Expr),
     Function(Func),
@@ -14,15 +13,15 @@ pub enum Stmt {
     Block(Vec<Stmt>),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Func {
     pub name: SourceToken,
     pub parameters: Vec<SourceToken>,
-    pub body: Rc<Stmt>,
+    pub body: Vec<Stmt>,
 }
 
 impl Func {
-    pub fn new(name: SourceToken, parameters: Vec<SourceToken>, body: Rc<Stmt>) -> Func {
+    pub fn new(name: SourceToken, parameters: Vec<SourceToken>, body: Vec<Stmt>) -> Func {
         Func {
             name,
             parameters,

@@ -1,6 +1,6 @@
 use rlox_scanner::SourceToken;
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Expr {
     Assign(SourceToken, Box<Expr>),
     Binary(Box<Expr>, SourceToken, Box<Expr>),

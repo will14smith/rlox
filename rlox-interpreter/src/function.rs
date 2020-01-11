@@ -17,7 +17,7 @@ use crate::{
 pub struct FunctionDefinition {
     pub name: SourceToken,
     pub parameters: Vec<SourceToken>,
-    pub body: Rc<Stmt>,
+    pub body: Vec<Stmt>,
 }
 
 impl From<&Func> for FunctionDefinition {
@@ -45,11 +45,7 @@ impl Callable for FunctionDefinition {
 
         let environment = Rc::new(RefCell::new(environment));
 
-        let result = match &*self.body {
-            Stmt::Block(stmts) => interpreter.evaluate_block(&stmts.iter().collect(), environment)?,
-            stmt => interpreter.evaluate_block(&vec![stmt], environment)?
-        };
-
+        let result = interpreter.evaluate_block(&self.body, environment)?;
         let value = if let StmtResult::Return(value) = result { value } else { Value::Nil };
 
         Ok(value)

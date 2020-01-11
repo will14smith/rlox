@@ -121,12 +121,12 @@ impl Interpreter {
             Stmt::Block(statements) => {
                 let environment= Rc::new(RefCell::new(Environment::new_with_parent(Rc::clone(&self.environment))));
 
-                self.evaluate_block(&statements.iter().collect(), environment)
+                self.evaluate_block(&statements, environment)
             }
         }
     }
 
-    pub fn evaluate_block(&mut self, statements: &Vec<&Stmt>, mut environment: Rc<RefCell<Environment>>) -> EvaluateResult<StmtResult> {
+    pub fn evaluate_block(&mut self, statements: &Vec<Stmt>, mut environment: Rc<RefCell<Environment>>) -> EvaluateResult<StmtResult> {
         ::std::mem::swap(&mut self.environment, &mut environment);
 
         let mut result = StmtResult::None;
