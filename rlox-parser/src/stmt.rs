@@ -8,6 +8,7 @@ pub enum Stmt {
     Function(Func),
     If(Expr, Box<Stmt>, Option<Box<Stmt>>),
     Print(Expr),
+    Return(SourceToken, Option<Expr>),
     Var(SourceToken, Option<Expr>),
     While(Expr, Box<Stmt>),
     Block(Vec<Stmt>),

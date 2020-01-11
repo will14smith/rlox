@@ -95,6 +95,8 @@ impl Parser {
             self.if_statement()
         } else if self.try_consume(Token::Print) {
             self.print_statement()
+        } else if self.try_consume(Token::Return) {
+            self.return_statement()
         } else if self.try_consume(Token::While) {
             self.while_statement()
         } else if self.try_consume(Token::LeftBrace) {
@@ -168,6 +170,20 @@ impl Parser {
         self.consume(Token::Semicolon, ParserErrorDescription::ExpectedToken(Token::Semicolon, "Expected ';' after value".into()))?;
 
         Ok(Stmt::Print(value))
+    }
+
+    fn return_statement(&mut self) -> ParserResult<Stmt> {
+        let token = self.previous().clone();
+
+        let value = if self.check(Token::Semicolon) {
+            None
+        } else {
+            Some(self.expression()?)
+        };
+
+        self.consume(Token::Semicolon, ParserErrorDescription::ExpectedToken(Token::Semicolon, "Expected ';' after return value".into()))?;
+
+        Ok(Stmt::Return(token, value))
     }
 
     fn while_statement(&mut self) -> ParserResult<Stmt> {
@@ -593,6 +609,12 @@ mod tests {
     #[test]
     fn test_print() {
         assert_eq!(expect_parse_statement(vec![Token::Print, Token::Number(123f64), Token::Semicolon]), Stmt::Print(Expr::Number(123f64)));
+    }
+
+    #[test]
+    fn test_return() {
+        assert_eq!(expect_parse_statement(vec![Token::Return, Token::Semicolon]), Stmt::Return(tok_to_src(Token::Return), None));
+        assert_eq!(expect_parse_statement(vec![Token::Return, Token::Number(123f64), Token::Semicolon]), Stmt::Return(tok_to_src(Token::Return), Some(Expr::Number(123f64))));
     }
 
     #[test]
