@@ -3,6 +3,8 @@ use crate::Expr;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Stmt {
+    Block(Vec<Stmt>),
+    Class(SourceToken, Vec<Func>),
     Expression(Expr),
     Function(Func),
     If(Expr, Box<Stmt>, Option<Box<Stmt>>),
@@ -10,7 +12,6 @@ pub enum Stmt {
     Return(SourceToken, Option<Expr>),
     Var(SourceToken, Option<Expr>),
     While(Expr, Box<Stmt>),
-    Block(Vec<Stmt>),
 }
 
 #[derive(Clone, Debug, PartialEq)]

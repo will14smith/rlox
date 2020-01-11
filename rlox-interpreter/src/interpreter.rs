@@ -11,6 +11,7 @@ use crate::{
     RuntimeErrorDescription,
     Value,
 
+    class::ClassDefinition,
     expression::evaluate,
     function::FunctionDefinition,
     native,
@@ -59,6 +60,16 @@ impl Interpreter {
 
     fn evaluate_stmt(&mut self, stmt: &Stmt) -> EvaluateResult<StmtResult> {
         match stmt {
+            Stmt::Class(name, functions) => {
+                self.environment.borrow_mut().define(name.lexeme.clone(), Value::Nil);
+
+                let definition = ClassDefinition::new(name, functions);
+                let value = Value::Function(Rc::new(definition));
+
+                self.environment.borrow_mut().define(name.lexeme.clone(), value);
+
+                Ok(StmtResult::None)
+            },
             Stmt::Expression(expr) => {
                 evaluate( self, expr)?;
 
@@ -103,7 +114,10 @@ impl Interpreter {
                     None => Value::Nil,
                 };
 
-                self.environment.borrow_mut().define(name.lexeme.clone(), value);
+                let mut sub_environment = Environment::new_with_parent(self.environment.clone());
+                sub_environment.define(name.lexeme.clone(), value);
+
+                self.environment = Rc::new(RefCell::new(sub_environment));
 
                 Ok(StmtResult::None)
             },

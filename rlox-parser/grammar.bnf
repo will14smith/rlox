@@ -1,6 +1,7 @@
 program        -> declaration* EOF;
 
-declaration    -> funDecl
+declaration    -> classDecl
+                | funDecl
                 | varDecl
                 | statement
                 ;
@@ -14,6 +15,7 @@ statement      -> exprStmt
                 | block
                 ;
 
+classDecl      -> "class" IDENTIFIER "{" function* "}";
 funDecl        -> "fun" function;
 varDecl        -> "var" IDENTIFIER ( "=" expression )? ";";
 

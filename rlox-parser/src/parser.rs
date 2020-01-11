@@ -53,7 +53,9 @@ impl Parser {
     // statements
     fn declaration(&mut self) -> ParserResult<Stmt> {
         fn inner(parser: &mut Parser) -> ParserResult<Stmt> {
-            if parser.try_consume(Token::Fun) {
+            if parser.try_consume(Token::Class) {
+                parser.class_declaration()
+            } else if parser.try_consume(Token::Fun) {
                 parser.function("function").map(Stmt::Function)
             } else if parser.try_consume(Token::Var) {
                 parser.var_declaration()
@@ -69,6 +71,23 @@ impl Parser {
                 Err(err)
             },
         }
+    }
+
+    fn class_declaration(&mut self) -> ParserResult<Stmt> {
+        // class keyword is already consumed
+        let name = self.consume_discriminant(::std::mem::discriminant(&Token::Identifier(String::new())), ParserErrorDescription::ExpectedIdentifier("Expected class name".into()))?;
+        let name = name.clone();
+
+        self.consume(Token::LeftBrace, ParserErrorDescription::ExpectedToken(Token::LeftBrace, "Expected '{' before class body".into()))?;
+
+        let mut functions = Vec::new();
+        while !self.check(Token::RightBrace) && !self.is_at_end() {
+            functions.push(self.function("method")?);
+        }
+
+        self.consume(Token::RightBrace, ParserErrorDescription::ExpectedToken(Token::RightBrace, "Expected '}' after class body".into()))?;
+
+        Ok(Stmt::Class(name, functions))
     }
 
     fn var_declaration(&mut self) -> ParserResult<Stmt> {
@@ -558,10 +577,10 @@ mod tests {
 
     #[test]
     fn test_fun_declaration() {
-        assert_eq!(expect_parse_statement(vec![Token::Fun, ident("abc"), Token::LeftParen, Token::RightParen, Token::LeftBrace, Token::RightBrace]), Stmt::Function(Func::new(tok_to_src(ident("abc")), vec![], Rc::new(Stmt::Block(vec![])))));
-        assert_eq!(expect_parse_statement(vec![Token::Fun, ident("abc"), Token::LeftParen, ident("a"), Token::RightParen, Token::LeftBrace, Token::RightBrace]), Stmt::Function(Func::new(tok_to_src(ident("abc")), vec![tok_to_src(ident("a"))], Rc::new(Stmt::Block(vec![])))));
-        assert_eq!(expect_parse_statement(vec![Token::Fun, ident("abc"), Token::LeftParen, ident("a"), Token::Comma, ident("b"), Token::RightParen, Token::LeftBrace, Token::RightBrace]), Stmt::Function(Func::new(tok_to_src(ident("abc")), vec![tok_to_src(ident("a")), tok_to_src(ident("b"))], Rc::new(Stmt::Block(vec![])))));
-        assert_eq!(expect_parse_statement(vec![Token::Fun, ident("abc"), Token::LeftParen, Token::RightParen, Token::LeftBrace, Token::Print, Token::Number(1f64), Token::Semicolon, Token::RightBrace]), Stmt::Function(Func::new(tok_to_src(ident("abc")), vec![], Rc::new(Stmt::Block(vec![Stmt::Print(Expr::Number(1f64))])))));
+        assert_eq!(expect_parse_statement(vec![Token::Fun, ident("abc"), Token::LeftParen, Token::RightParen, Token::LeftBrace, Token::RightBrace]), Stmt::Function(Func::new(tok_to_src(ident("abc")), vec![], vec![])));
+        assert_eq!(expect_parse_statement(vec![Token::Fun, ident("abc"), Token::LeftParen, ident("a"), Token::RightParen, Token::LeftBrace, Token::RightBrace]), Stmt::Function(Func::new(tok_to_src(ident("abc")), vec![tok_to_src(ident("a"))], vec![])));
+        assert_eq!(expect_parse_statement(vec![Token::Fun, ident("abc"), Token::LeftParen, ident("a"), Token::Comma, ident("b"), Token::RightParen, Token::LeftBrace, Token::RightBrace]), Stmt::Function(Func::new(tok_to_src(ident("abc")), vec![tok_to_src(ident("a")), tok_to_src(ident("b"))], vec![])));
+        assert_eq!(expect_parse_statement(vec![Token::Fun, ident("abc"), Token::LeftParen, Token::RightParen, Token::LeftBrace, Token::Print, Token::Number(1f64), Token::Semicolon, Token::RightBrace]), Stmt::Function(Func::new(tok_to_src(ident("abc")), vec![], vec![Stmt::Print(Expr::Number(1f64))])));
     }
 
     #[test]

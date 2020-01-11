@@ -1,3 +1,4 @@
+mod class;
 mod error;
 mod expression;
 mod function;

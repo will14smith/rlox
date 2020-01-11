@@ -212,14 +212,14 @@ mod tests {
     #[test]
     fn test_assign() {
         let mut interpreter = Interpreter::new();
-        interpreter.environment().define("a".into(), Value::Nil);
+        interpreter.environment().borrow_mut().define("a".into(), Value::Nil);
 
         let a = tok_to_src(Token::Identifier("a".into()));
-        evaluate(&mut environment, &Expr::Assign(a.clone(), Box::new(Expr::Boolean(true)))).unwrap();
+        evaluate(&mut interpreter, &Expr::Assign(a.clone(), Box::new(Expr::Boolean(true)))).unwrap();
 
-        assert_eq!(environment.get(&a), Ok(Rc::new(Value::Boolean(true))));
+        assert_eq!(interpreter.environment().borrow().get(&a), Ok(Rc::new(Value::Boolean(true))));
 
-        let result = evaluate(&mut environment, &Expr::Assign(tok_to_src(Token::Identifier("b".into())), Box::new(Expr::Boolean(true))));
+        let result = evaluate(&mut interpreter, &Expr::Assign(tok_to_src(Token::Identifier("b".into())), Box::new(Expr::Boolean(true))));
         assert!(result.is_err());
 
     }
