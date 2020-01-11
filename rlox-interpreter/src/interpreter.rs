@@ -21,6 +21,11 @@ pub struct Interpreter {
     global_environment: Rc<RefCell<Environment>>,
 }
 
+pub enum StmtResult {
+    None,
+    Return(Value),
+}
+
 impl Interpreter {
     pub fn new() -> Interpreter {
         let mut globals = Environment::new();
@@ -43,20 +48,21 @@ impl Interpreter {
         self.global_environment.clone()
     }
 
-    pub fn interpret(&mut self, statements: Vec<Stmt>) -> EvaluateResult<()> {
+    pub fn interpret(&mut self, statements: Vec<Stmt>) -> EvaluateResult<StmtResult> {
+        let mut result = StmtResult::None;
         for statement in statements {
-            self.evaluate_stmt(&statement)?;
+            result = self.evaluate_stmt(&statement)?;
         }
 
-        Ok(())
+        Ok(result)
     }
 
-    fn evaluate_stmt(&mut self, stmt: &Stmt) -> EvaluateResult<()> {
+    fn evaluate_stmt(&mut self, stmt: &Stmt) -> EvaluateResult<StmtResult> {
         match stmt {
             Stmt::Expression(expr) => {
                 evaluate( self, expr)?;
 
-                Ok(())
+                Ok(StmtResult::None)
             },
             Stmt::Function(func) => {
                 let definition: FunctionDefinition = func.into();
@@ -64,7 +70,7 @@ impl Interpreter {
 
                 self.environment.borrow_mut().define(func.name.lexeme.clone(), value);
 
-                Ok(())
+                Ok(StmtResult::None)
             }
             Stmt::If(cond, then_branch, else_branch_opt) => {
                 let cond_value = evaluate(self, cond)?;
@@ -74,14 +80,22 @@ impl Interpreter {
                 } else if let Some(else_branch) = else_branch_opt {
                     self.evaluate_stmt(else_branch)
                 } else {
-                    Ok(())
+                    Ok(StmtResult::None)
                 }
             }
             Stmt::Print(expr) => {
                 let value = evaluate(self, expr)?;
                 println!("{}", value);
 
-                Ok(())
+                Ok(StmtResult::None)
+            },
+            Stmt::Return(_, expr) => {
+                let value = match expr {
+                    Some(expr) => evaluate(self, expr)?,
+                    None => Value::Nil,
+                };
+
+                Ok(StmtResult::Return(value))
             },
             Stmt::Var(name, initializer) => {
                 let value = match initializer {
@@ -91,14 +105,18 @@ impl Interpreter {
 
                 self.environment.borrow_mut().define(name.lexeme.clone(), value);
 
-                Ok(())
+                Ok(StmtResult::None)
             },
             Stmt::While(condition, body) => {
+                let mut result = StmtResult::None;
                 while evaluate(self, condition)?.is_truthy() {
-                    self.evaluate_stmt(body)?;
+                    result = self.evaluate_stmt(body)?;
+                    if let StmtResult::Return(_) = &result {
+                        break;
+                    }
                 }
 
-                Ok(())
+                Ok(result)
             },
             Stmt::Block(statements) => {
                 let environment= Rc::new(RefCell::new(Environment::new_with_parent(Rc::clone(&self.environment))));
@@ -108,12 +126,18 @@ impl Interpreter {
         }
     }
 
-    pub fn evaluate_block(&mut self, statements: &Vec<&Stmt>, mut environment: Rc<RefCell<Environment>>) -> EvaluateResult<()> {
+    pub fn evaluate_block(&mut self, statements: &Vec<&Stmt>, mut environment: Rc<RefCell<Environment>>) -> EvaluateResult<StmtResult> {
         ::std::mem::swap(&mut self.environment, &mut environment);
 
+        let mut result = StmtResult::None;
         for statement in statements {
             match self.evaluate_stmt(statement) {
-                Ok(()) => { }
+                Ok(stmt_result) => {
+                    result = stmt_result;
+                    if let StmtResult::Return(_) = &result {
+                        break;
+                    }
+                }
                 Err(err) => {
                     ::std::mem::swap(&mut self.environment, &mut environment);
                     return Err(err);
@@ -122,7 +146,7 @@ impl Interpreter {
         }
 
         ::std::mem::swap(&mut self.environment, &mut environment);
-        Ok(())
+        Ok(result)
     }
 }
 

@@ -5,8 +5,13 @@ use std::{
 };
 use rlox_scanner::SourceToken;
 use rlox_parser::{ Func, Stmt };
-use crate::{RuntimeError, value::{Callable, Value}, Interpreter};
-use crate::interpreter::Environment;
+use crate::{
+    Interpreter,
+    RuntimeError,
+
+    interpreter::{Environment, StmtResult},
+    value::{Callable, Value},
+};
 
 #[derive(Debug)]
 pub struct FunctionDefinition {
@@ -40,13 +45,14 @@ impl Callable for FunctionDefinition {
 
         let environment = Rc::new(RefCell::new(environment));
 
-        match &*self.body {
+        let result = match &*self.body {
             Stmt::Block(stmts) => interpreter.evaluate_block(&stmts.iter().collect(), environment)?,
             stmt => interpreter.evaluate_block(&vec![stmt], environment)?
-        }
+        };
 
+        let value = if let StmtResult::Return(value) = result { value } else { Value::Nil };
 
-        Ok(Value::Nil)
+        Ok(value)
     }
 }
 
