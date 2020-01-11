@@ -2,7 +2,6 @@ use std::rc::Rc;
 use crate::{ Chunk, OpCode, Value };
 use crate::disasm::disassemble_instruction;
 use crate::op::DecodeError;
-use crate::vm::VMError::Runtime;
 
 pub struct VM {
     chunk: Rc<Chunk>,
@@ -23,6 +22,18 @@ pub enum VMError {
 #[derive(Debug)]
 pub enum RuntimeError {
     ExpectedNumber,
+}
+
+macro_rules! run_number_op {
+    ( $target:ident, $op:expr ) => {
+        $target.push(Rc::new(Value::Number($op)));
+    };
+    ( $target:ident, $ident:ident, $($rest:tt)+ ) => {
+        {
+            let $ident = as_number($target.pop()?.as_ref())?;
+            run_number_op!($target, $($rest)+);
+        }
+    }
 }
 
 impl VM {
@@ -51,10 +62,13 @@ impl VM {
                     let value = self.chunk.constant(index).map_err(|e| VMError::InvalidConstant(index, e))?;
                     self.push(value);
                 },
-                OpCode::Negate => {
-                    let value = as_number(self.pop()?.as_ref())?;
-                    self.push(Rc::new(Value::Number(-value)))
-                },
+
+                OpCode::Add => run_number_op!(self, right, left, left + right),
+                OpCode::Subtract => run_number_op!(self, right, left, left - right),
+                OpCode::Multiply => run_number_op!(self, right, left, left * right),
+                OpCode::Divide => run_number_op!(self, right, left, left / right),
+                OpCode::Negate => run_number_op!(self, value, -value),
+
                 OpCode::Return => {
                     println!("{}", self.pop()?);
                     return Ok(())

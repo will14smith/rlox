@@ -43,6 +43,10 @@ pub fn disassemble_instruction(w: &mut dyn Write, chunk: &Chunk, offset: usize) 
                         Err(err) =>  writeln!(w, "OP_CONSTANT         {} '{}'", index, err)?,
                     }
                 },
+                OpCode::Add => writeln!(w, "OP_ADD")?,
+                OpCode::Subtract => writeln!(w, "OP_SUBTRACT")?,
+                OpCode::Multiply => writeln!(w, "OP_MULTIPLY")?,
+                OpCode::Divide => writeln!(w, "OP_DIVIDE")?,
                 OpCode::Negate => writeln!(w, "OP_NEGATE")?,
                 OpCode::Return => writeln!(w, "OP_RETURN")?,
 
