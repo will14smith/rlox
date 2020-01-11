@@ -37,7 +37,8 @@ impl Chunk {
         if offset >= self.code.len() {
             Err(DecodeError::EOF)
         } else {
-            OpCode::decode(&self.code[offset..])
+            let (op, len) = OpCode::decode(&self.code[offset..])?;
+            Ok((op, offset + len))
         }
     }
     pub fn as_bytes(&self) -> ::std::slice::Iter<u8> {

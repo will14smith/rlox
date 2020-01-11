@@ -7,6 +7,7 @@ fn main() {
     let constant = chunk.add_constant(Value::Number(456f64)).unwrap();
 
     chunk.add(OpCode::Constant(constant), 123);
+    chunk.add(OpCode::Negate, 123);
     chunk.add(OpCode::Return, 123);
 
     let mut vm = VM::new(Rc::new(chunk));

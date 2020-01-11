@@ -1,8 +1,10 @@
 pub const OP_CONSTANT: u8 = 0x00;
-pub const OP_RETURN: u8 = 0x01;
+pub const OP_NEGATE: u8 = 0x01;
+pub const OP_RETURN: u8 = 0x02;
 
 pub enum OpCode {
     Constant(u8),
+    Negate,
     Return,
 
     Unknown(u8),
@@ -14,6 +16,7 @@ impl OpCode {
     pub fn byte_length(&self) -> usize {
         match self {
             OpCode::Constant(_) => 2,
+            OpCode::Negate => 1,
             OpCode::Return => 1,
 
             OpCode::Unknown(_) => 1,
@@ -42,6 +45,9 @@ impl OpCode {
                     Ok((OpCode::Constant(bytes[1]), 2))
                 }
             }
+            OP_NEGATE => {
+                Ok((OpCode::Negate, 1))
+            }
             OP_RETURN => {
                 Ok((OpCode::Return, 1))
             },
@@ -55,6 +61,7 @@ impl OpCode {
     pub fn encode(&self) -> Vec<u8> {
         match self {
             OpCode::Constant(index) => vec![OP_CONSTANT, *index],
+            OpCode::Negate => vec![OP_NEGATE],
             OpCode::Return => vec![OP_RETURN],
 
             OpCode::Unknown(val) => vec![*val],

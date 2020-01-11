@@ -2,6 +2,7 @@ use std::rc::Rc;
 use crate::{ Chunk, OpCode, Value };
 use crate::disasm::disassemble_instruction;
 use crate::op::DecodeError;
+use crate::vm::VMError::Runtime;
 
 pub struct VM {
     chunk: Rc<Chunk>,
@@ -16,7 +17,12 @@ pub enum VMError {
     InvalidOpCode(u8),
     InvalidConstant(u8, String),
     UnexpectedEmptyStack,
-    Runtime,
+    Runtime(RuntimeError),
+}
+
+#[derive(Debug)]
+pub enum RuntimeError {
+    ExpectedNumber,
 }
 
 impl VM {
@@ -45,8 +51,12 @@ impl VM {
                     let value = self.chunk.constant(index).map_err(|e| VMError::InvalidConstant(index, e))?;
                     self.push(value);
                 },
+                OpCode::Negate => {
+                    let value = as_number(self.pop()?.as_ref())?;
+                    self.push(Rc::new(Value::Number(-value)))
+                },
                 OpCode::Return => {
-                    println!("{}", self.pop().ok_or(VMError::UnexpectedEmptyStack)?);
+                    println!("{}", self.pop()?);
                     return Ok(())
                 },
 
@@ -64,8 +74,8 @@ impl VM {
         self.stack.push(value)
     }
 
-    fn pop(&mut self) -> Option<Rc<Value>> {
-        self.stack.pop()
+    fn pop(&mut self) -> Result<Rc<Value>, VMError> {
+        self.stack.pop().ok_or(VMError::UnexpectedEmptyStack)
     }
 
     #[cfg(feature = "trace_execution")]
@@ -76,4 +86,8 @@ impl VM {
         }
         eprintln!();
     }
+}
+
+fn as_number(value: &Value) -> Result<f64, VMError> {
+    value.as_number().map_err(|_| VMError::Runtime(RuntimeError::ExpectedNumber))
 }
