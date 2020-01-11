@@ -1,188 +1,197 @@
+use std::collections::HashMap;
+use std::mem::Discriminant;
 use rlox_scanner::{ Token, SourceToken };
 use crate::parser::{ Parser, ParserErrorDescription, ParserResult };
-use crate::{ Expr };
+use crate::{Expr, ParserError};
 
 pub struct ExprParser<'a> {
     parser: &'a mut Parser,
+    rules: HashMap<Discriminant<Token>, ParseRule<'a>>,
+}
+
+type PrefixFn<'a> = fn(&mut ExprParser<'a>) -> ParserResult<Expr>;
+type InfixFn<'a> = fn(&mut ExprParser<'a>, Expr) -> ParserResult<Expr>;
+
+struct ParseRule<'a> {
+    prefix: Option<PrefixFn<'a>>,
+    infix: Option<InfixFn<'a>>,
+    precedence: Precedence,
+}
+
+impl<'a> ParseRule<'a> {
+    pub fn new(prefix: Option<PrefixFn<'a>>, infix: Option<InfixFn<'a>>, precedence: Precedence) -> ParseRule<'a> {
+        ParseRule {
+            prefix,
+            infix,
+            precedence
+        }
+    }
+    pub fn new_prefix(prefix: PrefixFn<'a>, precedence: Precedence) -> ParseRule<'a> {
+        Self::new(Some(prefix), None, precedence)
+    }
+    pub fn new_infix(infix: InfixFn<'a>, precedence: Precedence) -> ParseRule<'a> {
+        Self::new(None, Some(infix), precedence)
+    }
+}
+
+#[derive(Copy, Clone, PartialOrd, PartialEq)]
+#[repr(u8)]
+enum Precedence {
+    None = 0,
+    Assignment,
+    Or,
+    And,
+    Equality,
+    Comparison,
+    Term,
+    Factor,
+    Unary,
+    Call,
+    Primary
+}
+
+impl Precedence {
+    pub fn next(self) -> Self {
+        let val = unsafe { ::std::mem::transmute::<Self, u8>(self) } as u16 + 1;
+        let max = unsafe { ::std::mem::transmute::<Self, u8>(Self::Primary) } as u16;
+
+        if val >= max {
+            Self::Primary
+        } else {
+            unsafe { ::std::mem::transmute(val as u8) }
+        }
+    }
 }
 
 impl<'a> ExprParser<'a> {
     pub fn new(parser: &'a mut Parser) -> ExprParser<'a> {
+        let mut rules = HashMap::new();
+
+        fn add_rule<'a>(rules: &mut HashMap<Discriminant<Token>, ParseRule<'a>>, t: Token, rule: ParseRule<'a>) {
+            rules.insert(::std::mem::discriminant(&t), rule);
+        }
+
+        add_rule(&mut rules, Token::Eof, ParseRule::new(None, None, Precedence::None));
+        add_rule(&mut rules, Token::LeftParen, ParseRule::new_prefix(ExprParser::grouping, Precedence::None));
+
+        add_rule(&mut rules, Token::Identifier(String::new()), ParseRule::new_prefix(ExprParser::literal, Precedence::None));
+        add_rule(&mut rules, Token::Number(0f64), ParseRule::new_prefix(ExprParser::literal, Precedence::None));
+        add_rule(&mut rules, Token::String(String::new()), ParseRule::new_prefix(ExprParser::literal, Precedence::None));
+        add_rule(&mut rules, Token::True, ParseRule::new_prefix(ExprParser::literal, Precedence::None));
+        add_rule(&mut rules, Token::False, ParseRule::new_prefix(ExprParser::literal, Precedence::None));
+        add_rule(&mut rules, Token::Nil, ParseRule::new_prefix(ExprParser::literal, Precedence::None));
+
+        add_rule(&mut rules, Token::Bang, ParseRule::new_prefix(ExprParser::unary, Precedence::Unary));
+
+        add_rule(&mut rules, Token::Plus, ParseRule::new_infix(ExprParser::binary, Precedence::Term));
+        add_rule(&mut rules, Token::Minus, ParseRule::new(Some(ExprParser::unary), Some(ExprParser::binary), Precedence::Term));
+        add_rule(&mut rules, Token::Star, ParseRule::new_infix(ExprParser::binary, Precedence::Factor));
+        add_rule(&mut rules, Token::Slash, ParseRule::new_infix(ExprParser::binary, Precedence::Factor));
+        add_rule(&mut rules, Token::BangEqual, ParseRule::new_infix(ExprParser::binary, Precedence::Equality));
+        add_rule(&mut rules, Token::EqualEqual, ParseRule::new_infix(ExprParser::binary, Precedence::Equality));
+        add_rule(&mut rules, Token::Greater, ParseRule::new_infix(ExprParser::binary, Precedence::Comparison));
+        add_rule(&mut rules, Token::GreaterEqual, ParseRule::new_infix(ExprParser::binary, Precedence::Comparison));
+        add_rule(&mut rules, Token::Less, ParseRule::new_infix(ExprParser::binary, Precedence::Comparison));
+        add_rule(&mut rules, Token::LessEqual, ParseRule::new_infix(ExprParser::binary, Precedence::Comparison));
+
+        add_rule(&mut rules, Token::And, ParseRule::new_infix(ExprParser::logical, Precedence::And));
+        add_rule(&mut rules, Token::Or, ParseRule::new_infix(ExprParser::logical, Precedence::Or));
+
         ExprParser {
-            parser
+            parser,
+            rules,
         }
     }
 
     pub fn parse(&mut self) -> ParserResult<Expr> {
-        self.assignment()
+        self.parse_precedence(Precedence::Assignment)
     }
 
-    fn assignment(&mut self) -> ParserResult<Expr> {
-        let expr = self.or()?;
+    fn parse_precedence(&mut self, precedence: Precedence) -> ParserResult<Expr> {
+        self.parser.advance();
 
-        if self.parser.try_consume(Token::Equal) {
-            let equals = self.parser.previous().clone();
-            let value = self.assignment()?;
+        let prefix = self.prefix_rule(self.parser.previous())?;
+        let mut expr = prefix(self)?;
 
-            match expr {
-                Expr::Var(target) => {
-                    Ok(Expr::Assign(target, Box::new(value)))
-                }
-                _ => {
-                    Err(self.parser.error(&equals, ParserErrorDescription::InvalidAssignmentTarget))
-                }
+        while precedence <= self.precedence(self.parser.peek()) {
+            self.parser.advance();
+
+            let prev = self.parser.previous();
+            let infix = self.infix_rule(prev)?;
+            expr = match infix {
+                Some(infix) => infix(self, expr)?,
+                None => panic!("invalid rule for {:?}", prev),
             }
-
-        } else {
-            Ok(expr)
-        }
-    }
-
-    fn or(&mut self) -> ParserResult<Expr> {
-        let mut expr = self.and()?;
-
-        while self.parser.try_consume(Token::Or) {
-            let operator = self.parser.previous().clone();
-            let right = self.and()?;
-
-            expr = Expr::Logical(Box::new(expr), operator, Box::new(right));
         }
 
         Ok(expr)
     }
 
-    fn and(&mut self) -> ParserResult<Expr> {
-        let mut expr = self.equality()?;
+    fn binary(&mut self, left: Expr) -> ParserResult<Expr> {
+        let op = self.parser.previous().clone();
 
-        while self.parser.try_consume(Token::And) {
-            let operator = self.parser.previous().clone();
-            let right = self.equality()?;
+        let precedence = self.precedence(&op);
+        let right = self.parse_precedence(precedence.next())?;
 
-            expr = Expr::Logical(Box::new(expr), operator, Box::new(right));
-        }
-
-        Ok(expr)
+        Ok(Expr::Binary(Box::new(left), op, Box::new(right)))
     }
+    fn logical(&mut self, left: Expr) -> ParserResult<Expr> {
+        let op = self.parser.previous().clone();
 
-    fn equality(&mut self) -> ParserResult<Expr> {
-        let mut expr = self.comparison()?;
+        let precedence = self.precedence(&op);
+        let right = self.parse_precedence(precedence.next())?;
 
-        while self.parser.try_consume_one_of(vec![Token::BangEqual, Token::EqualEqual]) {
-            let operator = self.parser.previous().clone();
-            let right = self.comparison()?;
-
-            expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
-        }
-
-        Ok(expr)
-    }
-
-    fn comparison(&mut self) -> ParserResult<Expr> {
-        let mut expr = self.addition()?;
-
-        while self.parser.try_consume_one_of(vec![Token::Greater, Token::GreaterEqual, Token::Less, Token::LessEqual]) {
-            let operator = self.parser.previous().clone();
-            let right = self.addition()?;
-
-            expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
-        }
-
-        Ok(expr)
-    }
-
-    fn addition(&mut self) -> ParserResult<Expr> {
-        let mut expr = self.multiplication()?;
-
-        while self.parser.try_consume_one_of(vec![Token::Minus, Token::Plus]) {
-            let operator = self.parser.previous().clone();
-            let right = self.multiplication()?;
-
-            expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
-        }
-
-        Ok(expr)
-    }
-
-    fn multiplication(&mut self) -> ParserResult<Expr> {
-        let mut expr = self.unary()?;
-
-        while self.parser.try_consume_one_of(vec![Token::Slash, Token::Star]) {
-            let operator = self.parser.previous().clone();
-            let right = self.unary()?;
-
-            expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
-        }
-
-        Ok(expr)
+        Ok(Expr::Logical(Box::new(left), op, Box::new(right)))
     }
 
     fn unary(&mut self) -> ParserResult<Expr> {
-        if self.parser.try_consume_one_of(vec![Token::Bang, Token::Minus]) {
-            let operator = self.parser.previous().clone();
-            let right = self.unary()?;
+        let op = self.parser.previous().clone();
+        let expr = self.parse_precedence(Precedence::Unary)?;
 
-            Ok(Expr::Unary(operator, Box::new(right)))
-        } else {
-            self.call()
-        }
+        Ok(Expr::Unary(op, Box::new(expr)))
     }
 
-    fn call(&mut self) -> ParserResult<Expr> {
-        let mut expr = self.primary()?;
+    fn grouping(&mut self) -> ParserResult<Expr> {
+        let expr = self.parse()?;
+        self.parser.consume(Token::RightParen, ParserErrorDescription::ExpectedToken(Token::RightParen, "Expected ')' after expression".into()))?;
 
-        while self.parser.try_consume(Token::LeftParen) {
-            expr = self.finish_call(expr)?;
-        }
-
-        Ok(expr)
+        Ok(Expr::Grouping(Box::new(expr)))
     }
 
-    fn finish_call(&mut self, callee: Expr) -> ParserResult<Expr> {
-        // left paren is already consumed
-        let mut arguments = Vec::new();
-
-        if !self.parser.check(Token::RightParen) {
-            arguments.push(self.parse()?);
-            while self.parser.try_consume(Token::Comma) {
-                if arguments.len() >= 255 {
-                    return Err(self.parser.error(self.parser.peek(), ParserErrorDescription::TooManyArguments));
-                }
-
-                arguments.push(self.parse()?);
-            }
-        }
-
-        let paren = self.parser.consume(Token::RightParen, ParserErrorDescription::ExpectedToken(Token::RightParen, "Expected ')' after arguments".into()))?;
-
-        Ok(Expr::Call(Box::new(callee), paren.clone(), arguments))
-    }
-
-    fn primary(&mut self) -> ParserResult<Expr> {
-        let token = self.parser.advance();
+    fn literal(&mut self) -> ParserResult<Expr> {
+        let token = self.parser.previous();
 
         match &token.token {
-            Token::False => Ok(Expr::Boolean(token.clone(), false)),
+            Token::Identifier(value) => Ok(Expr::Var(token.clone())),
+            Token::Number(value) => Ok(Expr::Number(token.clone(), *value)),
+            Token::String(value) => Ok(Expr::String(token.clone(), value.clone())),
             Token::True => Ok(Expr::Boolean(token.clone(), true)),
+            Token::False => Ok(Expr::Boolean(token.clone(), false)),
             Token::Nil => Ok(Expr::Nil),
 
-            Token::Number(val) => Ok(Expr::Number(token.clone(), *val)),
-            Token::String(val) => Ok(Expr::String(token.clone(), val.clone())),
-
-            Token::Identifier(_) => Ok(Expr::Var(token.clone())),
-
-            Token::LeftParen => {
-                if self.parser.is_at_end() {
-                    return Err(self.parser.error(self.parser.peek(), ParserErrorDescription::ExpectedExpression));
-                }
-
-                let expr = self.parse()?;
-                self.parser.consume(Token::RightParen, ParserErrorDescription::ExpectedToken(Token::RightParen, "Expected ')' after expression".into()))?;
-
-                Ok(Expr::Grouping(Box::new(expr)))
-            }
-
-            _ => Err(self.parser.error(self.parser.peek(), ParserErrorDescription::ExpectedExpression)),
+            _ => panic!("ExprParser::literal called with {:?} token", token),
         }
+    }
+
+    fn rule(&self, token: &SourceToken) -> ParserResult<&ParseRule<'a>> {
+        match self.rules.get(&::std::mem::discriminant(&token.token)) {
+            Some(rule) => Ok(rule),
+            None => Err(self.parser.error(token, ParserErrorDescription::ExpectedExpression)),
+        }
+    }
+    fn prefix_rule(&self, token: &SourceToken) -> ParserResult<&PrefixFn<'a>> {
+        let rule = self.rule(token)?;
+        match &rule.prefix {
+            Some(prefix) => Ok(prefix),
+            None => Err(self.parser.error(token, ParserErrorDescription::ExpectedExpression)),
+        }
+    }
+    fn infix_rule(&self, token: &SourceToken) -> ParserResult<Option<InfixFn<'a>>> {
+        let rule = self.rule(token)?;
+         Ok(rule.infix.clone())
+    }
+    fn precedence(&self, token: &SourceToken) -> Precedence {
+        self.rule(token).map(|rule| rule.precedence).unwrap_or(Precedence::None)
     }
 }
 
@@ -233,13 +242,14 @@ mod tests {
         assert_eq!(expect_parse_expression(vec![Token::Nil]), Expr::Nil);
         assert_eq!(expect_parse_expression(vec![Token::True]), expr_bool(true));
         assert_eq!(expect_parse_expression(vec![Token::False]), expr_bool(false));
-
         assert_eq!(expect_parse_expression(vec![Token::Number(123f64)]), expr_num(123f64));
         assert_eq!(expect_parse_expression(vec![Token::String("abc".into())]), expr_str("abc"));
-
         assert_eq!(expect_parse_expression(vec![ident("abc")]), Expr::Var(tok_to_src(ident("abc"))));
 
         assert_eq!(expect_parse_expression(vec![Token::LeftParen, Token::False, Token::RightParen]), Expr::Grouping(Box::new(expr_bool(false))));
+
+        // should leave the trailing content alone
+        assert_eq!(expect_parse_expression(vec![Token::Number(123f64), Token::Semicolon]), expr_num(123f64));
     }
 
     #[test]
@@ -254,7 +264,7 @@ mod tests {
             assert_eq!(expect_parse_expression(vec![Token::Number(123f64), operator.clone(), Token::Number(456f64)]),
                        Expr::Binary(Box::new(expr_num(123f64)), tok_to_src(operator.clone()), Box::new(expr_num(456f64))));
             assert_eq!(expect_parse_expression(vec![Token::Number(123f64), operator.clone(), Token::Number(456f64), operator.clone(), Token::Number(789f64)]),
-                       Expr::Binary(Box::new(Expr::Binary(Box::new(expr_num(123f64)), tok_to_src(operator.clone()), Box::new(expr_num(456f64)))), tok_to_src(operator), Box::new(expr_num(789f64))));
+                       Expr::Binary(Box::new(Expr::Binary(Box::new(expr_num(123f64)), tok_to_src(operator.clone()), Box::new(expr_num(456f64)))), tok_to_src(operator.clone()), Box::new(expr_num(789f64))));
         }
 
         assert_eq!(expect_parse_expression(vec![Token::Number(123f64), Token::Plus, Token::Number(456f64), Token::Star, Token::Number(789f64)]),

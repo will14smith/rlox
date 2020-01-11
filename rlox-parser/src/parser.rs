@@ -69,10 +69,7 @@ impl Parser {
     }
 
     pub fn advance(&mut self) -> &SourceToken {
-        if !self.is_at_end() {
-            self.current += 1
-        }
-
+        self.current += 1;
         self.previous()
     }
 
@@ -97,7 +94,7 @@ impl Parser {
     }
 
     pub fn is_at_end(&self) -> bool {
-        self.peek().token == Token::Eof
+        self.current >= self.tokens.len() || self.peek().token == Token::Eof
     }
 
     pub fn peek(&self) -> &SourceToken {
@@ -105,7 +102,11 @@ impl Parser {
     }
 
     pub fn previous(&self) -> &SourceToken {
-        self.tokens.get(self.current - 1).unwrap()
+        if self.current > self.tokens.len() {
+            &self.tokens[self.tokens.len()]
+        } else {
+            &self.tokens[self.current - 1]
+        }
     }
 
 }
