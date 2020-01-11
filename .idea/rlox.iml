@@ -26,6 +26,11 @@
       <sourceFolder url="file://$MODULE_DIR$/rlox/examples" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/rlox/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/rlox/benches" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/rlox-compiler/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/rlox-compiler/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/rlox-compiler/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/rlox-compiler/benches" isTestSource="true" />
+      <excludeFolder url="file://$MODULE_DIR$/rlox-compiler/target" />
       <excludeFolder url="file://$MODULE_DIR$/rlox-interpreter/target" />
       <excludeFolder url="file://$MODULE_DIR$/rlox-parser/target" />
       <excludeFolder url="file://$MODULE_DIR$/rlox-repl/target" />

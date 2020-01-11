@@ -6,4 +6,5 @@ members = [
     "rlox-parser",
     "rlox-interpreter",
     "rlox",
+    "rlox-compiler",
 ]
