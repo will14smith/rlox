@@ -65,7 +65,7 @@ impl Interpreter {
                 Ok(StmtResult::None)
             },
             Stmt::Function(func) => {
-                let definition: FunctionDefinition = func.into();
+                let definition = FunctionDefinition::new(func, self.environment.clone());
                 let value = Value::Function(Rc::new(definition));
 
                 self.environment.borrow_mut().define(func.name.lexeme.clone(), value);

@@ -18,15 +18,18 @@ pub struct FunctionDefinition {
     pub name: SourceToken,
     pub parameters: Vec<SourceToken>,
     pub body: Vec<Stmt>,
+    pub closure: Rc<RefCell<Environment>>,
 }
 
-impl From<&Func> for FunctionDefinition {
-    fn from(func: &Func) -> Self {
+impl FunctionDefinition {
+    pub fn new(func: &Func, closure: Rc<RefCell<Environment>>) -> FunctionDefinition {
         FunctionDefinition {
             name: func.name.clone(),
             parameters: func.parameters.clone(),
             body: func.body.clone(),
+            closure,
         }
+
     }
 }
 
@@ -36,7 +39,7 @@ impl Callable for FunctionDefinition {
     }
 
     fn call(&self, interpreter: &mut Interpreter, arguments: Vec<Value>) -> Result<Value, RuntimeError> {
-        let mut environment = Environment::new_with_parent(interpreter.global_environment());
+        let mut environment = Environment::new_with_parent(self.closure.clone());
 
         for (i, argument) in arguments.iter().enumerate() {
             let parameter = &self.parameters[i];
