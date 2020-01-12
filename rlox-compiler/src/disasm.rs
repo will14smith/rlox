@@ -15,38 +15,34 @@ fn write_instruction_header(w: &mut dyn Write, chunk: &Chunk, offset: usize) -> 
     }
 }
 
+macro_rules! write_constant_op {
+    ($w:ident, $op:expr, $chunk:ident, $index:ident) => {
+        {
+            let value = $chunk.constant($index);
+            match value {
+                Ok(value) => writeln!($w, "{:16} {} '{}'", $op, $index, value)?,
+                Err(err) =>  writeln!($w, "{:16} {} '{}'", $op, $index, err)?,
+            }
+        }
+    };
+}
+
 pub fn disassemble_instruction(w: &mut dyn Write, chunk: &Chunk, offset: usize) -> std::io::Result<Option<usize>> {
     match chunk.decode(offset) {
         Ok((op, next_offset)) => {
             write_instruction_header(w, chunk, offset)?;
 
             match op {
-                OpCode::Constant(index) => {
-                    let value = chunk.constant(index);
-                    match value {
-                        Ok(value) => writeln!(w, "OP_CONSTANT         {} '{}'", index, value)?,
-                        Err(err) =>  writeln!(w, "OP_CONSTANT         {} '{}'", index, err)?,
-                    }
-                },
+                OpCode::Constant(index) => write_constant_op!(w, "OP_CONSTANT", chunk, index),
+
                 OpCode::True => writeln!(w, "OP_TRUE")?,
                 OpCode::False => writeln!(w, "OP_FALSE")?,
                 OpCode::Nil => writeln!(w, "OP_NIL")?,
                 OpCode::Pop => writeln!(w, "OP_POP")?,
 
-                OpCode::GetGlobal(index) => {
-                    let value = chunk.constant(index);
-                    match value {
-                        Ok(value) => writeln!(w, "OP_GET_GLOBAL       {} '{}'", index, value)?,
-                        Err(err) =>  writeln!(w, "OP_GET_GLOBAL       {} '{}'", index, err)?,
-                    }
-                },
-                OpCode::DefineGlobal(index) => {
-                    let value = chunk.constant(index);
-                    match value {
-                        Ok(value) => writeln!(w, "OP_DEFINE_GLOBAL    {} '{}'", index, value)?,
-                        Err(err) =>  writeln!(w, "OP_DEFINE_GLOBAL    {} '{}'", index, err)?,
-                    }
-                },
+                OpCode::GetGlobal(index) => write_constant_op!(w, "OP_GET_GLOBAL", chunk, index),
+                OpCode::DefineGlobal(index) => write_constant_op!(w, "OP_DEFINE_GLOBAL", chunk, index),
+                OpCode::SetGlobal(index) => write_constant_op!(w, "OP_SET_GLOBAL", chunk, index),
 
                 OpCode::Equal => writeln!(w, "OP_EQUAL")?,
                 OpCode::Greater => writeln!(w, "OP_GREATER")?,

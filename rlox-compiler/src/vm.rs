@@ -97,10 +97,10 @@ impl VM {
 
                 OpCode::GetGlobal(index) => {
                     let ident = self.as_identifier(self.chunk.constant(index).map_err(|e| VMError::InvalidConstant(index, e))?.as_ref())?;
-                    let value = self.globals.get(&ident);
+                    let value = self.globals.get(&ident).map(Rc::clone);
 
                     match value {
-                        Some(value) => self.push(Rc::clone(value)),
+                        Some(value) => self.push(value),
                         None => return Err(VMError::Runtime(self.chunk.line(self.ip), RuntimeError::UndefinedVariable(ident))),
                     }
                 }
@@ -110,6 +110,16 @@ impl VM {
 
                     self.globals.insert(ident, value);
                     self.drop(1)?;
+                }
+                OpCode::SetGlobal(index) => {
+                    let ident = self.as_identifier(self.chunk.constant(index).map_err(|e| VMError::InvalidConstant(index, e))?.as_ref())?;
+                    let value = self.peek(0)?;
+
+                    if !self.globals.contains_key(&ident) {
+                        return Err(VMError::Runtime(self.chunk.line(self.ip), RuntimeError::UndefinedVariable(ident)));
+                    }
+
+                    self.globals.insert(ident, value);
                 }
 
                 OpCode::Equal => {

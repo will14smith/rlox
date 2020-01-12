@@ -74,7 +74,7 @@ impl<'a> ExprParser<'a> {
         add_rule(&mut rules, Token::Eof, ParseRule::new(None, None, Precedence::None));
         add_rule(&mut rules, Token::LeftParen, ParseRule::new_prefix(ExprParser::grouping, Precedence::None));
 
-        add_rule(&mut rules, Token::Identifier(String::new()), ParseRule::new_prefix(ExprParser::literal, Precedence::None));
+        add_rule(&mut rules, Token::Identifier(String::new()), ParseRule::new_prefix(ExprParser::variable, Precedence::None));
         add_rule(&mut rules, Token::Number(0f64), ParseRule::new_prefix(ExprParser::literal, Precedence::None));
         add_rule(&mut rules, Token::String(String::new()), ParseRule::new_prefix(ExprParser::literal, Precedence::None));
         add_rule(&mut rules, Token::True, ParseRule::new_prefix(ExprParser::literal, Precedence::None));
@@ -158,11 +158,23 @@ impl<'a> ExprParser<'a> {
         Ok(Expr::Grouping(Box::new(expr)))
     }
 
+    fn variable(&mut self) -> ParserResult<Expr> {
+        self.named_variable(self.parser.previous().clone())
+    }
+    fn named_variable(&mut self, token: SourceToken) -> ParserResult<Expr> {
+        if self.parser.try_consume(Token::Equal) {
+            let expr = self.parse()?;
+            Ok(Expr::Assign(token, Box::new(expr)))
+        } else {
+            Ok(Expr::Var(token))
+        }
+    }
+
+
     fn literal(&mut self) -> ParserResult<Expr> {
         let token = self.parser.previous();
 
         match &token.token {
-            Token::Identifier(value) => Ok(Expr::Var(token.clone())),
             Token::Number(value) => Ok(Expr::Number(token.clone(), *value)),
             Token::String(value) => Ok(Expr::String(token.clone(), value.clone())),
             Token::True => Ok(Expr::Boolean(token.clone(), true)),

@@ -62,7 +62,11 @@ impl<'a> Compiler<'a> {
     
     fn compile_expr(&mut self, expr: Expr) -> Result<(), CompilerError> {
         match expr {
-            Expr::Assign(_, _) => unimplemented!(),
+            Expr::Assign(name, value) => {
+                self.compile_expr(*value)?;
+                let constant = self.add_string(name.lexeme)?;
+                self.chunk.add(OpCode::SetGlobal(constant), name.line);
+            },
             Expr::Binary(left, op, right) => {
                 self.compile_expr(*left)?;
                 self.compile_expr(*right)?;
@@ -94,7 +98,6 @@ impl<'a> Compiler<'a> {
 
                     _ => panic!("Invalid unary operation {:?}", op.token)
                 }
-
             },
             Expr::Grouping(expr) => self.compile_expr(*expr)?,
             Expr::Var(name) => {
