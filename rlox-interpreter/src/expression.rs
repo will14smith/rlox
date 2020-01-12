@@ -10,7 +10,7 @@ use crate::{
 
 pub fn evaluate(interpreter: &mut Interpreter, expr: &Expr) -> EvaluateResult<Value> {
     match expr {
-        Expr::Nil => Ok(Value::Nil),
+        Expr::Nil(_) => Ok(Value::Nil),
         Expr::Boolean(_, value) => Ok(Value::Boolean(*value)),
         Expr::Number(_, value) => Ok(Value::Number(*value)),
         Expr::String(_, value) => Ok(Value::String(value.clone())),
@@ -149,7 +149,7 @@ mod tests {
     
     #[test]
     fn test_literal() {
-        assert_eq!(evaluate_expect(&Expr::Nil), Value::Nil);
+        assert_eq!(evaluate_expect(&Expr::Nil(tok_to_src(Token::Nil))), Value::Nil);
         assert_eq!(evaluate_expect(&expr_bool(true)), Value::Boolean(true));
         assert_eq!(evaluate_expect(&expr_num(123f64)), Value::Number(123f64));
         assert_eq!(evaluate_expect(&expr_str("abc".into())), Value::String("abc".into()));

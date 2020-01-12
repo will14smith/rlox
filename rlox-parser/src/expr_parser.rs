@@ -167,7 +167,7 @@ impl<'a> ExprParser<'a> {
             Token::String(value) => Ok(Expr::String(token.clone(), value.clone())),
             Token::True => Ok(Expr::Boolean(token.clone(), true)),
             Token::False => Ok(Expr::Boolean(token.clone(), false)),
-            Token::Nil => Ok(Expr::Nil),
+            Token::Nil => Ok(Expr::Nil(token.clone())),
 
             _ => panic!("ExprParser::literal called with {:?} token", token),
         }
@@ -239,7 +239,7 @@ mod tests {
 
     #[test]
     fn test_primary() {
-        assert_eq!(expect_parse_expression(vec![Token::Nil]), Expr::Nil);
+        assert_eq!(expect_parse_expression(vec![Token::Nil]), Expr::Nil(tok_to_src(Token::Nil)));
         assert_eq!(expect_parse_expression(vec![Token::True]), expr_bool(true));
         assert_eq!(expect_parse_expression(vec![Token::False]), expr_bool(false));
         assert_eq!(expect_parse_expression(vec![Token::Number(123f64)]), expr_num(123f64));

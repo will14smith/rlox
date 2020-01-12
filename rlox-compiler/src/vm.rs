@@ -15,8 +15,8 @@ pub enum VMError {
     Decode(DecodeError),
     InvalidOpCode(u8),
     InvalidConstant(u8, String),
-    UnexpectedEmptyStack,
-    Runtime(RuntimeError),
+    StackTooSmall(usize, usize),
+    Runtime(usize, RuntimeError),
 }
 
 #[derive(Debug)]
@@ -25,15 +25,34 @@ pub enum RuntimeError {
 }
 
 macro_rules! run_number_op {
-    ( $target:ident, $op:expr ) => {
-        $target.push(Rc::new(Value::Number($op)));
+    // entry case
+    ( $target:ident, $op:expr ; $($idents:ident),+ ) => {
+        run_number_op!($target, $op; $($idents),+ ; 0);
     };
-    ( $target:ident, $ident:ident, $($rest:tt)+ ) => {
+
+    // base case
+    ( $target:ident, $op:expr ; ; $count:expr ) => {
         {
-            let $ident = as_number($target.pop()?.as_ref())?;
-            run_number_op!($target, $($rest)+);
+            $target.drop($count)?;
+            $target.push(Rc::new(Value::Number($op)));
         }
-    }
+    };
+
+    // final case (could this be removed?)
+    ( $target:ident, $op:expr ; $ident:ident ; $count:expr ) => {
+        {
+            let $ident = $target.as_number($target.peek($count)?.as_ref())?;
+            run_number_op!($target, $op ; ; $count + 1);
+        }
+    };
+
+    // recursive case
+    ( $target:ident, $op:expr ; $ident:ident, $($idents:ident),* ; $count:expr ) => {
+        {
+            let $ident = $target.as_number($target.peek($count)?.as_ref())?;
+            run_number_op!($target, $op ; $($idents),* ; $count + 1);
+        }
+    };
 }
 
 impl VM {
@@ -62,12 +81,15 @@ impl VM {
                     let value = self.chunk.constant(index).map_err(|e| VMError::InvalidConstant(index, e))?;
                     self.push(value);
                 },
+                OpCode::True => self.push(Rc::new(Value::Boolean(true))),
+                OpCode::False => self.push(Rc::new(Value::Boolean(false))),
+                OpCode::Nil => self.push(Rc::new(Value::Nil)),
 
-                OpCode::Add => run_number_op!(self, right, left, left + right),
-                OpCode::Subtract => run_number_op!(self, right, left, left - right),
-                OpCode::Multiply => run_number_op!(self, right, left, left * right),
-                OpCode::Divide => run_number_op!(self, right, left, left / right),
-                OpCode::Negate => run_number_op!(self, value, -value),
+                OpCode::Add => run_number_op!(self, left + right ; right, left),
+                OpCode::Subtract => run_number_op!(self, left - right ; right, left),
+                OpCode::Multiply => run_number_op!(self, left * right ; right, left),
+                OpCode::Divide => run_number_op!(self, left / right ; right, left),
+                OpCode::Negate => run_number_op!(self, -value ; value),
 
                 OpCode::Return => {
                     println!("{}", self.pop()?);
@@ -81,6 +103,10 @@ impl VM {
             self.ip = next_ip
         }
     }
+
+    fn as_number(&self, value: &Value) -> Result<f64, VMError> {
+        value.as_number().map_err(|_| VMError::Runtime(self.chunk.line(self.ip), RuntimeError::ExpectedNumber))
+    }
 }
 
 impl VM {
@@ -88,8 +114,28 @@ impl VM {
         self.stack.push(value)
     }
 
+    fn peek(&self, offset: usize) -> Result<Rc<Value>, VMError> {
+        let len = self.stack.len();
+
+        if offset < len {
+            Ok(Rc::clone(&self.stack[len - offset - 1]))
+        } else {
+            Err(VMError::StackTooSmall(offset + 1, self.stack.len()))
+        }
+    }
+
     fn pop(&mut self) -> Result<Rc<Value>, VMError> {
-        self.stack.pop().ok_or(VMError::UnexpectedEmptyStack)
+        self.stack.pop().ok_or(VMError::StackTooSmall(1, self.stack.len()))
+    }
+
+    fn drop(&mut self, count: usize) -> Result<(), VMError> {
+        if count <= self.stack.len() {
+            self.stack.drain(self.stack.len()-count..);
+
+            Ok(())
+        } else {
+            Err(VMError::StackTooSmall(count, self.stack.len()))
+        }
     }
 
     #[cfg(feature = "trace_execution")]
@@ -100,8 +146,4 @@ impl VM {
         }
         eprintln!();
     }
-}
-
-fn as_number(value: &Value) -> Result<f64, VMError> {
-    value.as_number().map_err(|_| VMError::Runtime(RuntimeError::ExpectedNumber))
 }

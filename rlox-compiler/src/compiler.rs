@@ -59,7 +59,7 @@ impl<'a> Compiler<'a> {
 
                 Ok(())
             },
-            Expr::Grouping(_) => unimplemented!(),
+            Expr::Grouping(expr) => self.compile_expr(*expr),
             Expr::Var(_) => unimplemented!(),
             Expr::String(_, _) => unimplemented!(),
             Expr::Number(token, value) => {
@@ -67,8 +67,14 @@ impl<'a> Compiler<'a> {
                 self.chunk.add(OpCode::Constant(constant), token.line);
                 Ok(())
             },
-            Expr::Boolean(_, _) => unimplemented!(),
-            Expr::Nil => unimplemented!(),
+            Expr::Boolean(token, value) => {
+                self.chunk.add(if value { OpCode::True } else { OpCode::False }, token.line);
+                Ok(())
+            },
+            Expr::Nil(token) => {
+                self.chunk.add(OpCode::Nil, token.line);
+                Ok(())
+            },
         }
     }
 }

@@ -13,5 +13,5 @@ pub enum Expr {
     String(SourceToken, String),
     Number(SourceToken, f64),
     Boolean(SourceToken, bool),
-    Nil,
+    Nil(SourceToken),
 }

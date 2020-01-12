@@ -2,6 +2,8 @@ use std::fmt::{Display, Formatter, Error};
 
 #[derive(Clone)]
 pub enum Value {
+    Nil,
+    Boolean(bool),
     Number(f64),
 }
 
@@ -20,6 +22,8 @@ impl Value {
 impl Display for Value {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
         match self {
+            Value::Nil => f.write_str("nil"),
+            Value::Boolean(value) => if *value { f.write_str("true") } else { f.write_str("false") },
             Value::Number(val) => write!(f, "{}", val),
         }
     }
