@@ -33,6 +33,21 @@ pub fn disassemble_instruction(w: &mut dyn Write, chunk: &Chunk, offset: usize) 
                 OpCode::Nil => writeln!(w, "OP_NIL")?,
                 OpCode::Pop => writeln!(w, "OP_POP")?,
 
+                OpCode::GetGlobal(index) => {
+                    let value = chunk.constant(index);
+                    match value {
+                        Ok(value) => writeln!(w, "OP_GET_GLOBAL       {} '{}'", index, value)?,
+                        Err(err) =>  writeln!(w, "OP_GET_GLOBAL       {} '{}'", index, err)?,
+                    }
+                },
+                OpCode::DefineGlobal(index) => {
+                    let value = chunk.constant(index);
+                    match value {
+                        Ok(value) => writeln!(w, "OP_DEFINE_GLOBAL    {} '{}'", index, value)?,
+                        Err(err) =>  writeln!(w, "OP_DEFINE_GLOBAL    {} '{}'", index, err)?,
+                    }
+                },
+
                 OpCode::Equal => writeln!(w, "OP_EQUAL")?,
                 OpCode::Greater => writeln!(w, "OP_GREATER")?,
                 OpCode::Less => writeln!(w, "OP_LESS")?,

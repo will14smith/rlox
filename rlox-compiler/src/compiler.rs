@@ -44,7 +44,16 @@ impl<'a> Compiler<'a> {
                 self.chunk.add(OpCode::Print, 0); // TODO get line
             },
             Stmt::Return(_, _) => unimplemented!(),
-            Stmt::Var(_, _) => unimplemented!(),
+            Stmt::Var(name, expr) => {
+                if let Some(expr) = expr {
+                    self.compile_expr(expr)?;
+                } else {
+                    self.chunk.add(OpCode::Nil, name.line);
+                }
+
+                let constant = self.add_string(name.lexeme)?;
+                self.chunk.add(OpCode::DefineGlobal(constant), 0);
+            },
             Stmt::While(_, _) => unimplemented!(),
         }
 
@@ -73,8 +82,6 @@ impl<'a> Compiler<'a> {
 
                     _ => panic!("Invalid binary operation {:?}", op.token)
                 }
-
-                Ok(())
             },
             Expr::Call(_, _, _) => unimplemented!(),
             Expr::Logical(_, _, _) => unimplemented!(),
@@ -88,29 +95,35 @@ impl<'a> Compiler<'a> {
                     _ => panic!("Invalid unary operation {:?}", op.token)
                 }
 
-                Ok(())
             },
-            Expr::Grouping(expr) => self.compile_expr(*expr),
-            Expr::Var(_) => unimplemented!(),
+            Expr::Grouping(expr) => self.compile_expr(*expr)?,
+            Expr::Var(name) => {
+                let constant = self.add_string(name.lexeme)?;
+                self.chunk.add(OpCode::GetGlobal(constant), name.line);
+            },
             Expr::String(token, value) => {
-                let object = Rc::new(Object::String(value));
-                let constant = self.chunk.add_constant(Value::Object(object)).map_err(|_| CompilerError::TooManyConstants)?;
+                let constant = self.add_string(value)?;
                 self.chunk.add(OpCode::Constant(constant), token.line);
-                Ok(())
             },
             Expr::Number(token, value) => {
                 let constant = self.chunk.add_constant(Value::Number(value)).map_err(|_| CompilerError::TooManyConstants)?;
                 self.chunk.add(OpCode::Constant(constant), token.line);
-                Ok(())
             },
             Expr::Boolean(token, value) => {
                 self.chunk.add(if value { OpCode::True } else { OpCode::False }, token.line);
-                Ok(())
             },
             Expr::Nil(token) => {
                 self.chunk.add(OpCode::Nil, token.line);
-                Ok(())
             },
         }
+
+        Ok(())
+    }
+
+    fn add_string(&mut self, s: String) -> Result<u8, CompilerError> {
+        let object = Rc::new(Object::String(s));
+        let constant = self.chunk.add_constant(Value::Object(object)).map_err(|_| CompilerError::TooManyConstants)?;
+
+        Ok(constant)
     }
 }

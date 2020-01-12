@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::rc::Rc;
 use crate::{Chunk, Object, OpCode, Value};
 use crate::disasm::disassemble_instruction;
@@ -8,6 +9,7 @@ pub struct VM {
     ip: usize,
 
     stack: Vec<Rc<Value>>,
+    globals: HashMap<String, Rc<Value>>,
 }
 
 #[derive(Debug)]
@@ -23,6 +25,8 @@ pub enum VMError {
 pub enum RuntimeError {
     ExpectedNumber,
     ExpectedString,
+    ExpectedIdentifier,
+    UndefinedVariable(String),
     InvalidAdditionArguments,
 }
 
@@ -67,6 +71,7 @@ impl VM {
             ip: 0,
 
             stack: Vec::new(),
+            globals: HashMap::new(),
         }
     }
 
@@ -89,6 +94,23 @@ impl VM {
                 OpCode::False => self.push(Rc::new(Value::Boolean(false))),
                 OpCode::Nil => self.push(Rc::new(Value::Nil)),
                 OpCode::Pop => { self.pop()?; },
+
+                OpCode::GetGlobal(index) => {
+                    let ident = self.as_identifier(self.chunk.constant(index).map_err(|e| VMError::InvalidConstant(index, e))?.as_ref())?;
+                    let value = self.globals.get(&ident);
+
+                    match value {
+                        Some(value) => self.push(Rc::clone(value)),
+                        None => return Err(VMError::Runtime(self.chunk.line(self.ip), RuntimeError::UndefinedVariable(ident))),
+                    }
+                }
+                OpCode::DefineGlobal(index) => {
+                    let ident = self.as_identifier(self.chunk.constant(index).map_err(|e| VMError::InvalidConstant(index, e))?.as_ref())?;
+                    let value = self.peek(0)?;
+
+                    self.globals.insert(ident, value);
+                    self.drop(1)?;
+                }
 
                 OpCode::Equal => {
                     let right = self.pop()?;
@@ -157,6 +179,15 @@ impl VM {
         }
 
         Err(VMError::Runtime(self.chunk.line(self.ip), RuntimeError::ExpectedString))
+    }
+    fn as_identifier(&self, value: &Value) -> Result<String, VMError> {
+        if let Value::Object(obj) = value {
+            if let Object::String(s) = obj.as_ref() {
+                return Ok(s.to_owned())
+            }
+        }
+
+        Err(VMError::Runtime(self.chunk.line(self.ip), RuntimeError::ExpectedIdentifier))
     }
 }
 

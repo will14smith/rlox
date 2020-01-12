@@ -4,7 +4,10 @@ pub const OP_FALSE: u8 = OP_TRUE + 1;
 pub const OP_NIL: u8 = OP_FALSE + 1;
 pub const OP_POP: u8 = OP_NIL + 1;
 
-pub const OP_EQUAL: u8 = OP_POP + 1;
+pub const OP_GET_GLOBAL: u8 = OP_POP + 1;
+pub const OP_DEFINE_GLOBAL: u8 = OP_GET_GLOBAL + 1;
+
+pub const OP_EQUAL: u8 = OP_DEFINE_GLOBAL + 1;
 pub const OP_GREATER: u8 = OP_EQUAL + 1;
 pub const OP_LESS: u8 = OP_GREATER + 1;
 pub const OP_ADD: u8 = OP_LESS + 1;
@@ -23,6 +26,9 @@ pub enum OpCode {
     False,
     Nil,
     Pop,
+
+    GetGlobal(u8),
+    DefineGlobal(u8),
 
     Equal,
     Greater,
@@ -50,6 +56,9 @@ impl OpCode {
             OpCode::False => 1,
             OpCode::Nil => 1,
             OpCode::Pop => 1,
+
+            OpCode::GetGlobal(_) => 2,
+            OpCode::DefineGlobal(_) => 2,
 
             OpCode::Equal => 1,
             OpCode::Greater => 1,
@@ -95,6 +104,21 @@ impl OpCode {
             OP_NIL => Ok((OpCode::Nil, 1)),
             OP_POP => Ok((OpCode::Pop, 1)),
 
+            OP_GET_GLOBAL => {
+                if bytes.len() < 2 {
+                    Err(DecodeError::UnexpectedEOF(1, "Missing constant index".into()))
+                } else {
+                    Ok((OpCode::GetGlobal(bytes[1]), 2))
+                }
+            }
+            OP_DEFINE_GLOBAL => {
+                if bytes.len() < 2 {
+                    Err(DecodeError::UnexpectedEOF(1, "Missing constant index".into()))
+                } else {
+                    Ok((OpCode::DefineGlobal(bytes[1]), 2))
+                }
+            }
+
             OP_EQUAL => Ok((OpCode::Equal, 1)),
             OP_GREATER => Ok((OpCode::Greater, 1)),
             OP_LESS => Ok((OpCode::Less, 1)),
@@ -121,6 +145,9 @@ impl OpCode {
             OpCode::False => vec![OP_FALSE],
             OpCode::Nil => vec![OP_NIL],
             OpCode::Pop => vec![OP_POP],
+
+            OpCode::GetGlobal(index) => vec![OP_GET_GLOBAL, *index],
+            OpCode::DefineGlobal(index) => vec![OP_DEFINE_GLOBAL, *index],
 
             OpCode::Equal => vec![OP_EQUAL],
             OpCode::Greater => vec![OP_GREATER],
