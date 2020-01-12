@@ -1,5 +1,5 @@
 use std::rc::Rc;
-use crate::{ Chunk, OpCode, Value };
+use crate::{Chunk, Object, OpCode, Value};
 use crate::disasm::disassemble_instruction;
 use crate::op::DecodeError;
 
@@ -22,6 +22,8 @@ pub enum VMError {
 #[derive(Debug)]
 pub enum RuntimeError {
     ExpectedNumber,
+    ExpectedString,
+    InvalidAdditionArguments,
 }
 
 macro_rules! run_number_op {
@@ -80,13 +82,13 @@ impl VM {
 
             match op {
                 OpCode::Constant(index) => {
-                    // TODO return error
                     let value = self.chunk.constant(index).map_err(|e| VMError::InvalidConstant(index, e))?;
                     self.push(value);
                 },
                 OpCode::True => self.push(Rc::new(Value::Boolean(true))),
                 OpCode::False => self.push(Rc::new(Value::Boolean(false))),
                 OpCode::Nil => self.push(Rc::new(Value::Nil)),
+                OpCode::Pop => { self.pop()?; },
 
                 OpCode::Equal => {
                     let right = self.pop()?;
@@ -98,7 +100,23 @@ impl VM {
                 },
                 OpCode::Greater => run_number_op!(self, left > right, Value::Boolean ; right, left),
                 OpCode::Less => run_number_op!(self, left < right, Value::Boolean ; right, left),
-                OpCode::Add => run_number_op!(self, left + right ; right, left),
+                OpCode::Add => {
+                    let right = self.peek(0)?;
+                    let left = self.peek(1)?;
+
+                    let result = if let (Value::Number(left), Value::Number(right)) = (left.as_ref(), right.as_ref()) {
+                        Value::Number(left + right)
+                    } else if let Ok(left) = self.as_string(left.as_ref()) {
+                        Value::new_string(left.to_owned() + &right.to_string())
+                    } else if let Ok(right) = self.as_string(right.as_ref()) {
+                        Value::new_string(left.to_string() + &right)
+                    } else {
+                        return Err(VMError::Runtime(self.chunk.line(self.ip), RuntimeError::InvalidAdditionArguments))
+                    };
+
+                    self.drop(2)?;
+                    self.push(Rc::new(result));
+                },
                 OpCode::Subtract => run_number_op!(self, left - right ; right, left),
                 OpCode::Multiply => run_number_op!(self, left * right ; right, left),
                 OpCode::Divide => run_number_op!(self, left / right ; right, left),
@@ -109,8 +127,10 @@ impl VM {
                 },
                 OpCode::Negate => run_number_op!(self, -value ; value),
 
-                OpCode::Return => {
+                OpCode::Print => {
                     println!("{}", self.pop()?);
+                },
+                OpCode::Return => {
                     return Ok(())
                 },
 
@@ -128,6 +148,15 @@ impl VM {
 
     fn as_number(&self, value: &Value) -> Result<f64, VMError> {
         value.as_number().map_err(|_| VMError::Runtime(self.chunk.line(self.ip), RuntimeError::ExpectedNumber))
+    }
+    fn as_string(&self, value: &Value) -> Result<String, VMError> {
+        if let Value::Object(obj) = value {
+            if let Object::String(s) = obj.as_ref() {
+                return Ok(s.to_owned())
+            }
+        }
+
+        Err(VMError::Runtime(self.chunk.line(self.ip), RuntimeError::ExpectedString))
     }
 }
 

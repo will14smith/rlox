@@ -2,8 +2,9 @@ pub const OP_CONSTANT: u8 = 0;
 pub const OP_TRUE: u8 = OP_CONSTANT + 1;
 pub const OP_FALSE: u8 = OP_TRUE + 1;
 pub const OP_NIL: u8 = OP_FALSE + 1;
+pub const OP_POP: u8 = OP_NIL + 1;
 
-pub const OP_EQUAL: u8 = OP_NIL + 1;
+pub const OP_EQUAL: u8 = OP_POP + 1;
 pub const OP_GREATER: u8 = OP_EQUAL + 1;
 pub const OP_LESS: u8 = OP_GREATER + 1;
 pub const OP_ADD: u8 = OP_LESS + 1;
@@ -13,13 +14,15 @@ pub const OP_DIVIDE: u8 = OP_MULTIPLY + 1;
 pub const OP_NOT: u8 = OP_DIVIDE + 1;
 pub const OP_NEGATE: u8 = OP_NOT + 1;
 
-pub const OP_RETURN: u8 = OP_NEGATE + 1;
+pub const OP_PRINT: u8 = OP_NEGATE + 1;
+pub const OP_RETURN: u8 = OP_PRINT + 1;
 
 pub enum OpCode {
     Constant(u8),
     True,
     False,
     Nil,
+    Pop,
 
     Equal,
     Greater,
@@ -31,6 +34,7 @@ pub enum OpCode {
     Not,
     Negate,
 
+    Print,
     Return,
 
     Unknown(u8),
@@ -45,6 +49,7 @@ impl OpCode {
             OpCode::True => 1,
             OpCode::False => 1,
             OpCode::Nil => 1,
+            OpCode::Pop => 1,
 
             OpCode::Equal => 1,
             OpCode::Greater => 1,
@@ -56,6 +61,7 @@ impl OpCode {
             OpCode::Not => 1,
             OpCode::Negate => 1,
 
+            OpCode::Print => 1,
             OpCode::Return => 1,
 
             OpCode::Unknown(_) => 1,
@@ -87,6 +93,7 @@ impl OpCode {
             OP_TRUE => Ok((OpCode::True, 1)),
             OP_FALSE => Ok((OpCode::False, 1)),
             OP_NIL => Ok((OpCode::Nil, 1)),
+            OP_POP => Ok((OpCode::Pop, 1)),
 
             OP_EQUAL => Ok((OpCode::Equal, 1)),
             OP_GREATER => Ok((OpCode::Greater, 1)),
@@ -98,6 +105,7 @@ impl OpCode {
             OP_NOT => Ok((OpCode::Not, 1)),
             OP_NEGATE => Ok((OpCode::Negate, 1)),
 
+            OP_PRINT => Ok((OpCode::Print, 1)),
             OP_RETURN => Ok((OpCode::Return, 1)),
 
             _ => {
@@ -112,6 +120,7 @@ impl OpCode {
             OpCode::True => vec![OP_TRUE],
             OpCode::False => vec![OP_FALSE],
             OpCode::Nil => vec![OP_NIL],
+            OpCode::Pop => vec![OP_POP],
 
             OpCode::Equal => vec![OP_EQUAL],
             OpCode::Greater => vec![OP_GREATER],
@@ -123,6 +132,7 @@ impl OpCode {
             OpCode::Not => vec![OP_NOT],
             OpCode::Negate => vec![OP_NEGATE],
 
+            OpCode::Print => vec![OP_PRINT],
             OpCode::Return => vec![OP_RETURN],
 
             OpCode::Unknown(val) => vec![*val],

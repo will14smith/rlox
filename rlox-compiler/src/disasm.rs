@@ -31,6 +31,7 @@ pub fn disassemble_instruction(w: &mut dyn Write, chunk: &Chunk, offset: usize) 
                 OpCode::True => writeln!(w, "OP_TRUE")?,
                 OpCode::False => writeln!(w, "OP_FALSE")?,
                 OpCode::Nil => writeln!(w, "OP_NIL")?,
+                OpCode::Pop => writeln!(w, "OP_POP")?,
 
                 OpCode::Equal => writeln!(w, "OP_EQUAL")?,
                 OpCode::Greater => writeln!(w, "OP_GREATER")?,
@@ -42,6 +43,7 @@ pub fn disassemble_instruction(w: &mut dyn Write, chunk: &Chunk, offset: usize) 
                 OpCode::Not => writeln!(w, "OP_NOT")?,
                 OpCode::Negate => writeln!(w, "OP_NEGATE")?,
 
+                OpCode::Print => writeln!(w, "OP_PRINT")?,
                 OpCode::Return => writeln!(w, "OP_RETURN")?,
 
                 OpCode::Unknown(val) => writeln!(w, "Unknown opcode {}", val)?,

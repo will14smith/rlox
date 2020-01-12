@@ -1,6 +1,7 @@
-use rlox_parser::Expr;
-use crate::{Chunk, Value, OpCode};
+use std::rc::Rc;
 use rlox_scanner::Token;
+use rlox_parser::{Expr, Stmt};
+use crate::{Chunk, Object, OpCode, Value};
 
 pub struct Compiler<'a> {
     chunk: &'a mut Chunk,
@@ -20,14 +21,36 @@ impl<'a> Compiler<'a> {
 }
 
 impl<'a> Compiler<'a> {
-    pub fn compile(&mut self, expr: Expr) -> Result<(), CompilerError> {
-        self.compile_expr(expr)?;
-
-        self.chunk.add(OpCode::Return, 0);
-
+    pub fn compile(&mut self, statements: Vec<Stmt>) -> Result<(), CompilerError> {
+        for statement in statements {
+            self.compile_stmt(statement)?;
+        }
+        
         Ok(())
     }
 
+    fn compile_stmt(&mut self, stmt: Stmt) -> Result<(), CompilerError> {
+        match stmt {
+            Stmt::Block(_) => unimplemented!(),
+            Stmt::Class(_, _) => unimplemented!(),
+            Stmt::Expression(expr) => {
+                self.compile_expr(expr)?;
+                self.chunk.add(OpCode::Pop, 0); // TODO get line
+            },
+            Stmt::Function(_) => unimplemented!(),
+            Stmt::If(_, _, _) => unimplemented!(),
+            Stmt::Print(expr) => {
+                self.compile_expr(expr)?;
+                self.chunk.add(OpCode::Print, 0); // TODO get line
+            },
+            Stmt::Return(_, _) => unimplemented!(),
+            Stmt::Var(_, _) => unimplemented!(),
+            Stmt::While(_, _) => unimplemented!(),
+        }
+
+        Ok(())
+    }
+    
     fn compile_expr(&mut self, expr: Expr) -> Result<(), CompilerError> {
         match expr {
             Expr::Assign(_, _) => unimplemented!(),
@@ -69,7 +92,12 @@ impl<'a> Compiler<'a> {
             },
             Expr::Grouping(expr) => self.compile_expr(*expr),
             Expr::Var(_) => unimplemented!(),
-            Expr::String(_, _) => unimplemented!(),
+            Expr::String(token, value) => {
+                let object = Rc::new(Object::String(value));
+                let constant = self.chunk.add_constant(Value::Object(object)).map_err(|_| CompilerError::TooManyConstants)?;
+                self.chunk.add(OpCode::Constant(constant), token.line);
+                Ok(())
+            },
             Expr::Number(token, value) => {
                 let constant = self.chunk.add_constant(Value::Number(value)).map_err(|_| CompilerError::TooManyConstants)?;
                 self.chunk.add(OpCode::Constant(constant), token.line);

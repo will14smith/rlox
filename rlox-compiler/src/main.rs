@@ -1,7 +1,7 @@
 use std::io::Write;
 use std::rc::Rc;
 use rlox_scanner::{ Scanner, ScannerError, Token };
-use rlox_parser::{ ExprParser, Parser, ParserError };
+use rlox_parser::{Parser, ParserError, StmtParser};
 use rlox_compiler::{ Chunk, Compiler, CompilerError, VM, VMError };
 
 #[derive(Debug)]
@@ -44,12 +44,16 @@ fn run(source: &String) -> Result<(), ReplError> {
     }
 
     let mut parser = Parser::new(tokens);
-    let mut parser = ExprParser::new(&mut parser);
-    let expr = parser.parse().map_err(ReplError::Parser)?;
+    let mut parser = StmtParser::new(&mut parser);
+    let statements = parser.parse();
 
     let mut chunk = Chunk::new();
     let mut compiler = Compiler::new(&mut chunk);
-    compiler.compile(expr).map_err(ReplError::Compiler)?;
+    for result in statements {
+        let statement = result.map_err(ReplError::Parser)?;
+
+        compiler.compile(vec![statement]).map_err(ReplError::Compiler)?;
+    }
 
     let mut vm = VM::new(Rc::new(chunk));
     vm.run().map_err(ReplError::VM)?;
