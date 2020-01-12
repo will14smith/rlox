@@ -32,10 +32,14 @@ pub fn disassemble_instruction(w: &mut dyn Write, chunk: &Chunk, offset: usize) 
                 OpCode::False => writeln!(w, "OP_FALSE")?,
                 OpCode::Nil => writeln!(w, "OP_NIL")?,
 
+                OpCode::Equal => writeln!(w, "OP_EQUAL")?,
+                OpCode::Greater => writeln!(w, "OP_GREATER")?,
+                OpCode::Less => writeln!(w, "OP_LESS")?,
                 OpCode::Add => writeln!(w, "OP_ADD")?,
                 OpCode::Subtract => writeln!(w, "OP_SUBTRACT")?,
                 OpCode::Multiply => writeln!(w, "OP_MULTIPLY")?,
                 OpCode::Divide => writeln!(w, "OP_DIVIDE")?,
+                OpCode::Not => writeln!(w, "OP_NOT")?,
                 OpCode::Negate => writeln!(w, "OP_NEGATE")?,
 
                 OpCode::Return => writeln!(w, "OP_RETURN")?,

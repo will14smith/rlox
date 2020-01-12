@@ -25,32 +25,35 @@ pub enum RuntimeError {
 }
 
 macro_rules! run_number_op {
-    // entry case
+    // entry cases
     ( $target:ident, $op:expr ; $($idents:ident),+ ) => {
-        run_number_op!($target, $op; $($idents),+ ; 0);
+        run_number_op!($target, $op, Value::Number; $($idents),+ ; 0);
+    };
+    ( $target:ident, $op:expr, $result:path ; $($idents:ident),+ ) => {
+        run_number_op!($target, $op, $result; $($idents),+ ; 0);
     };
 
     // base case
-    ( $target:ident, $op:expr ; ; $count:expr ) => {
+    ( $target:ident, $op:expr, $result:path ; ; $count:expr ) => {
         {
             $target.drop($count)?;
-            $target.push(Rc::new(Value::Number($op)));
+            $target.push(Rc::new($result($op)));
         }
     };
 
     // final case (could this be removed?)
-    ( $target:ident, $op:expr ; $ident:ident ; $count:expr ) => {
+    ( $target:ident, $op:expr, $result:path ; $ident:ident ; $count:expr ) => {
         {
             let $ident = $target.as_number($target.peek($count)?.as_ref())?;
-            run_number_op!($target, $op ; ; $count + 1);
+            run_number_op!($target, $op, $result ; ; $count + 1);
         }
     };
 
     // recursive case
-    ( $target:ident, $op:expr ; $ident:ident, $($idents:ident),* ; $count:expr ) => {
+    ( $target:ident, $op:expr, $result:path ; $ident:ident, $($idents:ident),* ; $count:expr ) => {
         {
             let $ident = $target.as_number($target.peek($count)?.as_ref())?;
-            run_number_op!($target, $op ; $($idents),* ; $count + 1);
+            run_number_op!($target, $op, $result ; $($idents),* ; $count + 1);
         }
     };
 }
@@ -85,10 +88,25 @@ impl VM {
                 OpCode::False => self.push(Rc::new(Value::Boolean(false))),
                 OpCode::Nil => self.push(Rc::new(Value::Nil)),
 
+                OpCode::Equal => {
+                    let right = self.pop()?;
+                    let left = self.pop()?;
+
+                    let value = Value::Boolean(left.is_equal(right.as_ref()));
+
+                    self.push(Rc::new(value));
+                },
+                OpCode::Greater => run_number_op!(self, left > right, Value::Boolean ; right, left),
+                OpCode::Less => run_number_op!(self, left < right, Value::Boolean ; right, left),
                 OpCode::Add => run_number_op!(self, left + right ; right, left),
                 OpCode::Subtract => run_number_op!(self, left - right ; right, left),
                 OpCode::Multiply => run_number_op!(self, left * right ; right, left),
                 OpCode::Divide => run_number_op!(self, left / right ; right, left),
+                OpCode::Not => {
+                    let value = self.pop()?;
+                    let new_value = Value::Boolean(!self.is_truthy(value.as_ref()));
+                    self.push(Rc::new(new_value))
+                },
                 OpCode::Negate => run_number_op!(self, -value ; value),
 
                 OpCode::Return => {
@@ -102,6 +120,10 @@ impl VM {
 
             self.ip = next_ip
         }
+    }
+
+    fn is_truthy(&self, value: &Value) -> bool {
+        value.is_truthy()
     }
 
     fn as_number(&self, value: &Value) -> Result<f64, VMError> {

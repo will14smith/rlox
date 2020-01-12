@@ -17,6 +17,29 @@ impl Value {
             _ => Err(()),
         }
     }
+
+    pub fn is_truthy(&self) -> bool {
+        use Value::*;
+
+        match self {
+            Nil => false,
+            Boolean(value) => *value,
+
+            _ => true,
+        }
+    }
+
+    pub fn is_equal(&self, other: &Value) -> bool {
+        use Value::*;
+
+        match (self, other) {
+            (Nil, Nil) => true,
+            (Boolean(left), Boolean(right)) => *left == *right,
+            (Number(left), Number(right)) => *left == *right,
+
+            _ => false
+        }
+    }
 }
 
 impl Display for Value {

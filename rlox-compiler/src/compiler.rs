@@ -36,6 +36,13 @@ impl<'a> Compiler<'a> {
                 self.compile_expr(*right)?;
 
                 match &op.token {
+                    Token::BangEqual => { self.chunk.add(OpCode::Equal, op.line); self.chunk.add(OpCode::Not, op.line) },
+                    Token::EqualEqual => self.chunk.add(OpCode::Equal, op.line),
+                    Token::Greater => self.chunk.add(OpCode::Greater, op.line),
+                    Token::GreaterEqual => { self.chunk.add(OpCode::Less, op.line); self.chunk.add(OpCode::Not, op.line) },
+                    Token::Less => self.chunk.add(OpCode::Less, op.line),
+                    Token::LessEqual => { self.chunk.add(OpCode::Greater, op.line); self.chunk.add(OpCode::Not, op.line) },
+
                     Token::Plus => self.chunk.add(OpCode::Add, op.line),
                     Token::Minus => self.chunk.add(OpCode::Subtract, op.line),
                     Token::Star => self.chunk.add(OpCode::Multiply, op.line),
@@ -52,6 +59,7 @@ impl<'a> Compiler<'a> {
                 self.compile_expr(*value)?;
 
                 match &op.token {
+                    Token::Bang => self.chunk.add(OpCode::Not, op.line),
                     Token::Minus => self.chunk.add(OpCode::Negate, op.line),
 
                     _ => panic!("Invalid unary operation {:?}", op.token)
