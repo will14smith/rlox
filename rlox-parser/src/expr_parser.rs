@@ -9,7 +9,7 @@ pub struct ExprParser<'a> {
     rules: HashMap<Discriminant<Token>, ParseRule<'a>>,
 }
 
-type PrefixFn<'a> = fn(&mut ExprParser<'a>) -> ParserResult<Expr>;
+type PrefixFn<'a> = fn(&mut ExprParser<'a>, can_assign: bool) -> ParserResult<Expr>;
 type InfixFn<'a> = fn(&mut ExprParser<'a>, Expr) -> ParserResult<Expr>;
 
 struct ParseRule<'a> {
@@ -111,7 +111,8 @@ impl<'a> ExprParser<'a> {
         self.parser.advance();
 
         let prefix = self.prefix_rule(self.parser.previous())?;
-        let mut expr = prefix(self)?;
+        let can_assign = precedence <= Precedence::Assignment;
+        let mut expr = prefix(self, can_assign)?;
 
         while precedence <= self.precedence(self.parser.peek()) {
             self.parser.advance();
@@ -124,7 +125,11 @@ impl<'a> ExprParser<'a> {
             }
         }
 
-        Ok(expr)
+        if can_assign && self.parser.try_consume(Token::Equal) {
+            Err(self.parser.error(self.parser.previous(), ParserErrorDescription::InvalidAssignmentTarget))
+        } else {
+            Ok(expr)
+        }
     }
 
     fn binary(&mut self, left: Expr) -> ParserResult<Expr> {
@@ -144,25 +149,25 @@ impl<'a> ExprParser<'a> {
         Ok(Expr::Logical(Box::new(left), op, Box::new(right)))
     }
 
-    fn unary(&mut self) -> ParserResult<Expr> {
+    fn unary(&mut self, can_assign: bool) -> ParserResult<Expr> {
         let op = self.parser.previous().clone();
         let expr = self.parse_precedence(Precedence::Unary)?;
 
         Ok(Expr::Unary(op, Box::new(expr)))
     }
 
-    fn grouping(&mut self) -> ParserResult<Expr> {
+    fn grouping(&mut self, can_assign: bool) -> ParserResult<Expr> {
         let expr = self.parse()?;
         self.parser.consume(Token::RightParen, ParserErrorDescription::ExpectedToken(Token::RightParen, "Expected ')' after expression".into()))?;
 
         Ok(Expr::Grouping(Box::new(expr)))
     }
 
-    fn variable(&mut self) -> ParserResult<Expr> {
-        self.named_variable(self.parser.previous().clone())
+    fn variable(&mut self, can_assign: bool) -> ParserResult<Expr> {
+        self.named_variable(self.parser.previous().clone(), can_assign)
     }
-    fn named_variable(&mut self, token: SourceToken) -> ParserResult<Expr> {
-        if self.parser.try_consume(Token::Equal) {
+    fn named_variable(&mut self, token: SourceToken, can_assign: bool) -> ParserResult<Expr> {
+        if can_assign && self.parser.try_consume(Token::Equal) {
             let expr = self.parse()?;
             Ok(Expr::Assign(token, Box::new(expr)))
         } else {
@@ -171,7 +176,7 @@ impl<'a> ExprParser<'a> {
     }
 
 
-    fn literal(&mut self) -> ParserResult<Expr> {
+    fn literal(&mut self, can_assign: bool) -> ParserResult<Expr> {
         let token = self.parser.previous();
 
         match &token.token {
@@ -315,6 +320,9 @@ mod tests {
         assert!(result.is_err());
 
         let result = parse_expression(vec![Token::Number(123f64), Token::Equal, Token::Number(123f64)]);
+        assert!(result.is_err());
+
+        let result = parse_expression(vec![ident("a"), Token::Star, ident("b"), Token::Equal, ident("c"), Token::Plus, ident("d")]);
         assert!(result.is_err());
     }
 }
