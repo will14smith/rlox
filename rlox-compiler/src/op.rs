@@ -4,7 +4,9 @@ pub const OP_FALSE: u8 = OP_TRUE + 1;
 pub const OP_NIL: u8 = OP_FALSE + 1;
 pub const OP_POP: u8 = OP_NIL + 1;
 
-pub const OP_GET_GLOBAL: u8 = OP_POP + 1;
+pub const OP_GET_LOCAL: u8 = OP_POP + 1;
+pub const OP_SET_LOCAL: u8 = OP_GET_LOCAL + 1;
+pub const OP_GET_GLOBAL: u8 = OP_SET_LOCAL + 1;
 pub const OP_DEFINE_GLOBAL: u8 = OP_GET_GLOBAL + 1;
 pub const OP_SET_GLOBAL: u8 = OP_DEFINE_GLOBAL + 1;
 
@@ -28,6 +30,8 @@ pub enum OpCode {
     Nil,
     Pop,
 
+    GetLocal(u8),
+    SetLocal(u8),
     GetGlobal(u8),
     DefineGlobal(u8),
     SetGlobal(u8),
@@ -59,6 +63,8 @@ impl OpCode {
             OpCode::Nil => 1,
             OpCode::Pop => 1,
 
+            OpCode::GetLocal(_) => 2,
+            OpCode::SetLocal(_) => 2,
             OpCode::GetGlobal(_) => 2,
             OpCode::DefineGlobal(_) => 2,
             OpCode::SetGlobal(_) => 2,
@@ -113,6 +119,8 @@ impl OpCode {
             OP_NIL => Ok((OpCode::Nil, 1)),
             OP_POP => Ok((OpCode::Pop, 1)),
 
+            OP_GET_LOCAL => constant_op!(OpCode::GetLocal, bytes),
+            OP_SET_LOCAL => constant_op!(OpCode::SetLocal, bytes),
             OP_GET_GLOBAL => constant_op!(OpCode::GetGlobal, bytes),
             OP_DEFINE_GLOBAL => constant_op!(OpCode::DefineGlobal, bytes),
             OP_SET_GLOBAL => constant_op!(OpCode::SetGlobal, bytes),
@@ -144,6 +152,8 @@ impl OpCode {
             OpCode::Nil => vec![OP_NIL],
             OpCode::Pop => vec![OP_POP],
 
+            OpCode::GetLocal(index) => vec![OP_GET_LOCAL, *index],
+            OpCode::SetLocal(index) => vec![OP_SET_LOCAL, *index],
             OpCode::GetGlobal(index) => vec![OP_GET_GLOBAL, *index],
             OpCode::DefineGlobal(index) => vec![OP_DEFINE_GLOBAL, *index],
             OpCode::SetGlobal(index) => vec![OP_SET_GLOBAL, *index],

@@ -40,6 +40,8 @@ pub fn disassemble_instruction(w: &mut dyn Write, chunk: &Chunk, offset: usize) 
                 OpCode::Nil => writeln!(w, "OP_NIL")?,
                 OpCode::Pop => writeln!(w, "OP_POP")?,
 
+                OpCode::GetLocal(index) => write_constant_op!(w, "OP_GET_LOCAL", chunk, index),
+                OpCode::SetLocal(index) => write_constant_op!(w, "OP_SET_LOCAL", chunk, index),
                 OpCode::GetGlobal(index) => write_constant_op!(w, "OP_GET_GLOBAL", chunk, index),
                 OpCode::DefineGlobal(index) => write_constant_op!(w, "OP_DEFINE_GLOBAL", chunk, index),
                 OpCode::SetGlobal(index) => write_constant_op!(w, "OP_SET_GLOBAL", chunk, index),

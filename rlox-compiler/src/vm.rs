@@ -26,7 +26,8 @@ pub enum RuntimeError {
     ExpectedNumber,
     ExpectedString,
     ExpectedIdentifier,
-    UndefinedVariable(String),
+    UndefinedGlobal(String),
+    UndefinedLocal(u8),
     InvalidAdditionArguments,
 }
 
@@ -95,13 +96,26 @@ impl VM {
                 OpCode::Nil => self.push(Rc::new(Value::Nil)),
                 OpCode::Pop => { self.pop()?; },
 
+                OpCode::GetLocal(index) => {
+                    let value = self.stack.get(index as usize).map(Rc::clone);
+
+                    match value {
+                        Some(value) => self.push(value),
+                        None => return Err(VMError::Runtime(self.chunk.line(self.ip), RuntimeError::UndefinedLocal(index))),
+                    }
+                },
+                OpCode::SetLocal(index) => {
+                    let value = self.peek(0)?;
+
+                    std::mem::replace(&mut self.stack[index as usize], value);
+                },
                 OpCode::GetGlobal(index) => {
                     let ident = self.as_identifier(self.chunk.constant(index).map_err(|e| VMError::InvalidConstant(index, e))?.as_ref())?;
                     let value = self.globals.get(&ident).map(Rc::clone);
 
                     match value {
                         Some(value) => self.push(value),
-                        None => return Err(VMError::Runtime(self.chunk.line(self.ip), RuntimeError::UndefinedVariable(ident))),
+                        None => return Err(VMError::Runtime(self.chunk.line(self.ip), RuntimeError::UndefinedGlobal(ident))),
                     }
                 }
                 OpCode::DefineGlobal(index) => {
@@ -116,7 +130,7 @@ impl VM {
                     let value = self.peek(0)?;
 
                     if !self.globals.contains_key(&ident) {
-                        return Err(VMError::Runtime(self.chunk.line(self.ip), RuntimeError::UndefinedVariable(ident)));
+                        return Err(VMError::Runtime(self.chunk.line(self.ip), RuntimeError::UndefinedGlobal(ident)));
                     }
 
                     self.globals.insert(ident, value);

@@ -5,17 +5,30 @@ use crate::{Chunk, Object, OpCode, Value};
 
 pub struct Compiler<'a> {
     chunk: &'a mut Chunk,
+
+    locals: Vec<Local>,
+    scope_depth: u8,
+}
+
+pub struct Local {
+    pub name: String,
+    pub scope_depth: u8,
 }
 
 #[derive(Debug)]
 pub enum CompilerError {
     TooManyConstants,
+    TooManyLocals,
+    VariableAlreadyDeclared(String),
 }
 
 impl<'a> Compiler<'a> {
     pub fn new(chunk: &'a mut Chunk) -> Compiler<'a> {
         Compiler {
             chunk,
+
+            locals: Vec::new(),
+            scope_depth: 0,
         }
     }
 }
@@ -31,7 +44,13 @@ impl<'a> Compiler<'a> {
 
     fn compile_stmt(&mut self, stmt: Stmt) -> Result<(), CompilerError> {
         match stmt {
-            Stmt::Block(_) => unimplemented!(),
+            Stmt::Block(stmts) => {
+                self.begin_scope();
+                for stmt in stmts {
+                    self.compile_stmt(stmt)?;
+                }
+                self.end_scope();
+            },
             Stmt::Class(_, _) => unimplemented!(),
             Stmt::Expression(expr) => {
                 self.compile_expr(expr)?;
@@ -51,8 +70,24 @@ impl<'a> Compiler<'a> {
                     self.chunk.add(OpCode::Nil, name.line);
                 }
 
-                let constant = self.add_string(name.lexeme)?;
-                self.chunk.add(OpCode::DefineGlobal(constant), 0);
+                if self.scope_depth > 0 {
+                    if self.locals.len() == std::u8::MAX as usize {
+                        return Err(CompilerError::TooManyLocals);
+                    }
+
+                    let existing_in_scope = self.locals.iter().any(|x| x.scope_depth == self.scope_depth && x.name == name.lexeme);
+                    if existing_in_scope {
+                        return Err(CompilerError::VariableAlreadyDeclared(name.lexeme));
+                    }
+
+                    self.locals.push(Local {
+                        name: name.lexeme,
+                        scope_depth: self.scope_depth,
+                    });
+                } else {
+                    let constant = self.add_string(name.lexeme)?;
+                    self.chunk.add(OpCode::DefineGlobal(constant), 0);
+                }
             },
             Stmt::While(_, _) => unimplemented!(),
         }
@@ -64,8 +99,16 @@ impl<'a> Compiler<'a> {
         match expr {
             Expr::Assign(name, value) => {
                 self.compile_expr(*value)?;
-                let constant = self.add_string(name.lexeme)?;
-                self.chunk.add(OpCode::SetGlobal(constant), name.line);
+
+                match self.resolve_local(&name.lexeme) {
+                    Some(local) => {
+                        self.chunk.add(OpCode::SetLocal(local), name.line);
+                    },
+                    None => {
+                        let constant = self.add_string(name.lexeme)?;
+                        self.chunk.add(OpCode::SetGlobal(constant), name.line);
+                    }
+                }
             },
             Expr::Binary(left, op, right) => {
                 self.compile_expr(*left)?;
@@ -101,8 +144,15 @@ impl<'a> Compiler<'a> {
             },
             Expr::Grouping(expr) => self.compile_expr(*expr)?,
             Expr::Var(name) => {
-                let constant = self.add_string(name.lexeme)?;
-                self.chunk.add(OpCode::GetGlobal(constant), name.line);
+                match self.resolve_local(&name.lexeme) {
+                    Some(local) => {
+                        self.chunk.add(OpCode::GetLocal(local), name.line);
+                    },
+                    None => {
+                        let constant = self.add_string(name.lexeme)?;
+                        self.chunk.add(OpCode::GetGlobal(constant), name.line);
+                    }
+                }
             },
             Expr::String(token, value) => {
                 let constant = self.add_string(value)?;
@@ -128,5 +178,29 @@ impl<'a> Compiler<'a> {
         let constant = self.chunk.add_constant(Value::Object(object)).map_err(|_| CompilerError::TooManyConstants)?;
 
         Ok(constant)
+    }
+
+    fn resolve_local(&mut self, name: &String) -> Option<u8> {
+        self.locals.iter().enumerate().rev().find(|(_, local)| &local.name == name).map(|(i, _)| i as u8)
+    }
+
+    fn begin_scope(&mut self) {
+        if self.scope_depth == std::u8::MAX {
+            panic!("begin scope will overflow scope depth")
+        }
+
+        self.scope_depth += 1;
+    }
+    fn end_scope(&mut self) {
+        if self.scope_depth == std::u8::MIN {
+            panic!("ending scope without an open one")
+        }
+
+        self.scope_depth -= 1;
+
+        while !self.locals.is_empty() && self.locals.last().unwrap().scope_depth > self.scope_depth {
+            self.chunk.add(OpCode::Pop, 0); // TODO line number?
+            self.locals.pop();
+        }
     }
 }
