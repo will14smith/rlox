@@ -84,7 +84,7 @@ impl VM {
                 disassemble_instruction(&mut std::io::stderr(), &self.chunk, self.ip).unwrap();
             }
 
-            let (op, next_ip) = self.chunk.decode(self.ip).map_err(VMError::Decode)?;
+            let (op, mut next_ip) = self.chunk.decode(self.ip).map_err(VMError::Decode)?;
 
             match op {
                 OpCode::Constant(index) => {
@@ -175,6 +175,14 @@ impl VM {
 
                 OpCode::Print => {
                     println!("{}", self.pop()?);
+                },
+                OpCode::Jump(offset) => {
+                    next_ip = self.ip + offset as usize;
+                },
+                OpCode::JumpIfFalse(offset) => {
+                    if !self.is_truthy(self.peek(0)?.as_ref()) {
+                        next_ip = self.ip + offset as usize;
+                    }
                 },
                 OpCode::Return => {
                     return Ok(())

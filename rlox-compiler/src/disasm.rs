@@ -27,6 +27,19 @@ macro_rules! write_constant_op {
     };
 }
 
+pub fn disassemble_chunk(w: &mut dyn Write, chunk: &Chunk) {
+    let mut offset = 0;
+    loop {
+        match disassemble_instruction(w, chunk, offset) {
+            Ok(next_offset) => match next_offset {
+                Some(next_offset) => offset = next_offset,
+                None => break,
+            },
+            Err(e) => panic!("{:?}", e),
+        }
+    }
+}
+
 pub fn disassemble_instruction(w: &mut dyn Write, chunk: &Chunk, offset: usize) -> std::io::Result<Option<usize>> {
     match chunk.decode(offset) {
         Ok((op, next_offset)) => {
@@ -57,6 +70,8 @@ pub fn disassemble_instruction(w: &mut dyn Write, chunk: &Chunk, offset: usize) 
                 OpCode::Negate => writeln!(w, "OP_NEGATE")?,
 
                 OpCode::Print => writeln!(w, "OP_PRINT")?,
+                OpCode::Jump(jump_offset) => writeln!(w, "OP_JUMP +{:#04x} -> {:#06x}", jump_offset, offset + jump_offset as usize)?,
+                OpCode::JumpIfFalse(jump_offset) => writeln!(w, "OP_JUMP_IF_FALSE +{:#04x} -> {:#06x}", jump_offset, offset + jump_offset as usize)?,
                 OpCode::Return => writeln!(w, "OP_RETURN")?,
 
                 OpCode::Unknown(val) => writeln!(w, "Unknown opcode {}", val)?,

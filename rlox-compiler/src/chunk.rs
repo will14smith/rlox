@@ -2,11 +2,17 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use crate::op::{ OpCode, DecodeError };
 use crate::Value;
+use crate::disasm::disassemble_instruction;
 
 pub struct Chunk {
     code: Vec<u8>,
     lines: HashMap<usize, usize>,
     constants: Vec<Rc<Value>>,
+}
+
+pub struct ChunkReference {
+    offset: usize,
+    length: usize,
 }
 
 impl Chunk {
@@ -18,6 +24,8 @@ impl Chunk {
         }
     }
 
+    pub fn len(&self) -> usize { self.code.len() }
+
     pub fn add_constant(&mut self, value: Value) -> Result<u8, String> {
         if self.constants.len() >= 255 {
             Err(String::from("too many local constants"))
@@ -27,10 +35,27 @@ impl Chunk {
         }
     }
 
-    pub fn add(&mut self, op: OpCode, line: usize) {
+    pub fn add(&mut self, op: OpCode, line: usize) -> ChunkReference {
         let mut bytes = op.encode();
-        self.lines.insert(self.code.len(), line);
+
+        let offset = self.code.len();
+        let length = bytes.len();
+
+        self.lines.insert(offset, line);
         self.code.append(&mut bytes);
+
+        ChunkReference { offset, length }
+    }
+
+    pub fn patch(&mut self, location: &ChunkReference, op: OpCode) {
+        let patch_bytes = op.encode();
+        if patch_bytes.len() != location.length {
+            panic!("Attempting to patch {} bytes into a {} byte location", patch_bytes.len(), location.length);
+        }
+
+        for (i, b) in patch_bytes.iter().enumerate() {
+            self.code[location.offset + i] = *b;
+        }
     }
 
     pub fn decode(&self, offset: usize) -> Result<(OpCode, usize), DecodeError> {

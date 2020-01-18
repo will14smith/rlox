@@ -21,7 +21,9 @@ pub const OP_NOT: u8 = OP_DIVIDE + 1;
 pub const OP_NEGATE: u8 = OP_NOT + 1;
 
 pub const OP_PRINT: u8 = OP_NEGATE + 1;
-pub const OP_RETURN: u8 = OP_PRINT + 1;
+pub const OP_JUMP: u8 = OP_PRINT + 1;
+pub const OP_JUMP_IF_FALSE: u8 = OP_JUMP + 1;
+pub const OP_RETURN: u8 = OP_JUMP_IF_FALSE + 1;
 
 pub enum OpCode {
     Constant(u8),
@@ -47,6 +49,8 @@ pub enum OpCode {
     Negate,
 
     Print,
+    Jump(u16),
+    JumpIfFalse(u16),
     Return,
 
     Unknown(u8),
@@ -80,6 +84,8 @@ impl OpCode {
             OpCode::Negate => 1,
 
             OpCode::Print => 1,
+            OpCode::Jump(_) => 3,
+            OpCode::JumpIfFalse(_) => 3,
             OpCode::Return => 1,
 
             OpCode::Unknown(_) => 1,
@@ -100,6 +106,18 @@ macro_rules! constant_op {
                 Err(DecodeError::UnexpectedEOF(1, "Missing constant index".into()))
             } else {
                 Ok(($type($bytes[1]), 2))
+            }
+        }
+    };
+}
+macro_rules! jump_op {
+    ($type:path, $bytes:ident) => {
+        {
+            if $bytes.len() < 3 {
+                Err(DecodeError::UnexpectedEOF(1, "Missing jump offset".into()))
+            } else {
+                let offset = ($bytes[1] as u16) << 8 | ($bytes[2] as u16);
+                Ok(($type(offset), 3))
             }
         }
     };
@@ -136,6 +154,8 @@ impl OpCode {
             OP_NEGATE => Ok((OpCode::Negate, 1)),
 
             OP_PRINT => Ok((OpCode::Print, 1)),
+            OP_JUMP => jump_op!(OpCode::Jump, bytes),
+            OP_JUMP_IF_FALSE => jump_op!(OpCode::JumpIfFalse, bytes),
             OP_RETURN => Ok((OpCode::Return, 1)),
 
             _ => {
@@ -169,6 +189,8 @@ impl OpCode {
             OpCode::Negate => vec![OP_NEGATE],
 
             OpCode::Print => vec![OP_PRINT],
+            OpCode::Jump(offset) => vec![OP_JUMP, (*offset >> 8) as u8, *offset as u8],
+            OpCode::JumpIfFalse(offset) => vec![OP_JUMP_IF_FALSE, (*offset >> 8) as u8, *offset as u8],
             OpCode::Return => vec![OP_RETURN],
 
             OpCode::Unknown(val) => vec![*val],

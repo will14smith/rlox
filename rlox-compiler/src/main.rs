@@ -2,7 +2,7 @@ use std::io::Write;
 use std::rc::Rc;
 use rlox_scanner::{ Scanner, ScannerError, Token };
 use rlox_parser::{Parser, ParserError, StmtParser};
-use rlox_compiler::{ Chunk, Compiler, CompilerError, VM, VMError };
+use rlox_compiler::{Chunk, Compiler, CompilerError, VM, VMError, disassemble_chunk};
 
 #[derive(Debug)]
 enum ReplError {
@@ -54,6 +54,8 @@ fn run(source: &String) -> Result<(), ReplError> {
 
         compiler.compile(vec![statement]).map_err(ReplError::Compiler)?;
     }
+
+    disassemble_chunk(&mut std::io::stdout(), &chunk);
 
     let mut vm = VM::new(Rc::new(chunk));
     vm.run().map_err(ReplError::VM)?;

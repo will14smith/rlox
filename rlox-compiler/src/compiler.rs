@@ -1,7 +1,9 @@
 use std::rc::Rc;
 use rlox_scanner::Token;
 use rlox_parser::{Expr, Stmt};
+use crate::chunk::ChunkReference;
 use crate::{Chunk, Object, OpCode, Value};
+use crate::op::OpCode::JumpIfFalse;
 
 pub struct Compiler<'a> {
     chunk: &'a mut Chunk,
@@ -33,6 +35,12 @@ impl<'a> Compiler<'a> {
     }
 }
 
+struct JumpPatchReference {
+    chunk_ref: ChunkReference,
+    offset: usize,
+    op_factory: Box<dyn Fn(u16) -> OpCode>,
+}
+
 impl<'a> Compiler<'a> {
     pub fn compile(&mut self, statements: Vec<Stmt>) -> Result<(), CompilerError> {
         for statement in statements {
@@ -57,7 +65,28 @@ impl<'a> Compiler<'a> {
                 self.chunk.add(OpCode::Pop, 0); // TODO get line
             },
             Stmt::Function(_) => unimplemented!(),
-            Stmt::If(_, _, _) => unimplemented!(),
+            Stmt::If(cond, true_branch, false_branch) => {
+                self.compile_expr(cond)?;
+
+                let false_jump = self.jump(Box::new(OpCode::JumpIfFalse));
+
+                self.chunk.add(OpCode::Pop, 0); // TODO line number
+                self.compile_stmt(*true_branch)?;
+
+                match false_branch {
+                    Some(false_branch) => {
+                        let true_jump = self.jump(Box::new(OpCode::Jump));
+
+                        self.resolve_jump(&false_jump);
+                        self.chunk.add(OpCode::Pop, 0); // TODO line number
+                        self.compile_stmt(*false_branch)?;
+                        self.resolve_jump(&true_jump);
+                    },
+                    None => {
+                        self.resolve_jump(&false_jump);
+                    },
+                }
+            }
             Stmt::Print(expr) => {
                 self.compile_expr(expr)?;
                 self.chunk.add(OpCode::Print, 0); // TODO get line
@@ -127,11 +156,36 @@ impl<'a> Compiler<'a> {
                     Token::Star => self.chunk.add(OpCode::Multiply, op.line),
                     Token::Slash => self.chunk.add(OpCode::Divide, op.line),
 
-                    _ => panic!("Invalid binary operation {:?}", op.token)
-                }
+                    _ => { panic!("Invalid binary operation {:?}", op.token); },
+                };
             },
             Expr::Call(_, _, _) => unimplemented!(),
-            Expr::Logical(_, _, _) => unimplemented!(),
+            Expr::Logical(left, op, right) => {
+                self.compile_expr(*left)?;
+
+                match &op.token {
+                    Token::Or => {
+                        let else_jump = self.jump(Box::new(OpCode::JumpIfFalse));
+                        let end_jump = self.jump(Box::new(OpCode::Jump));
+
+                        self.resolve_jump(&else_jump);
+                        self.chunk.add(OpCode::Pop, op.line);
+                        self.compile_expr(*right)?;
+
+                        self.resolve_jump(&end_jump);
+                    },
+                    Token::And => {
+                        let jump = self.jump(Box::new(OpCode::JumpIfFalse));
+
+                        self.chunk.add(OpCode::Pop, op.line);
+                        self.compile_expr(*right)?;
+
+                        self.resolve_jump(&jump);
+                    },
+
+                    _ => panic!("Invalid logical operation {:?}", op.token)
+                }
+            },
             Expr::Unary(op, value) => {
                 self.compile_expr(*value)?;
 
@@ -139,8 +193,8 @@ impl<'a> Compiler<'a> {
                     Token::Bang => self.chunk.add(OpCode::Not, op.line),
                     Token::Minus => self.chunk.add(OpCode::Negate, op.line),
 
-                    _ => panic!("Invalid unary operation {:?}", op.token)
-                }
+                    _ => { panic!("Invalid unary operation {:?}", op.token); },
+                };
             },
             Expr::Grouping(expr) => self.compile_expr(*expr)?,
             Expr::Var(name) => {
@@ -178,6 +232,20 @@ impl<'a> Compiler<'a> {
         let constant = self.chunk.add_constant(Value::Object(object)).map_err(|_| CompilerError::TooManyConstants)?;
 
         Ok(constant)
+    }
+
+    fn jump(&mut self, op_factory: Box<dyn Fn(u16) -> OpCode>) -> JumpPatchReference {
+        let offset = self.chunk.len();
+        let chunk_ref = self.chunk.add(OpCode::Jump(0), 0); // TODO line number?
+
+        // TODO track unresolved jumps
+
+        JumpPatchReference { chunk_ref, offset, op_factory }
+    }
+    fn resolve_jump(&mut self, jump: &JumpPatchReference) {
+        let offset = self.chunk.len() - jump.offset;
+        let op = (jump.op_factory)(offset as u16);
+        self.chunk.patch(&jump.chunk_ref, op);
     }
 
     fn resolve_local(&mut self, name: &String) -> Option<u8> {
