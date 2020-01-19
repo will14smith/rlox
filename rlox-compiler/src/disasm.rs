@@ -70,8 +70,8 @@ pub fn disassemble_instruction(w: &mut dyn Write, chunk: &Chunk, offset: usize) 
                 OpCode::Negate => writeln!(w, "OP_NEGATE")?,
 
                 OpCode::Print => writeln!(w, "OP_PRINT")?,
-                OpCode::Jump(jump_offset) => writeln!(w, "OP_JUMP +{:#04x} -> {:#06x}", jump_offset, offset + jump_offset as usize)?,
-                OpCode::JumpIfFalse(jump_offset) => writeln!(w, "OP_JUMP_IF_FALSE +{:#04x} -> {:#06x}", jump_offset, offset + jump_offset as usize)?,
+                OpCode::Jump(jump_offset) => writeln!(w, "OP_JUMP {} -> {:#06x}", display_jump_offset(jump_offset), calculate_jump_target(offset, jump_offset))?,
+                OpCode::JumpIfFalse(jump_offset) => writeln!(w, "OP_JUMP_IF_FALSE {} -> {:#06x}", display_jump_offset(jump_offset), calculate_jump_target(offset, jump_offset))?,
                 OpCode::Return => writeln!(w, "OP_RETURN")?,
 
                 OpCode::Unknown(val) => writeln!(w, "Unknown opcode {}", val)?,
@@ -88,5 +88,21 @@ pub fn disassemble_instruction(w: &mut dyn Write, chunk: &Chunk, offset: usize) 
             // TODO?
             Ok(Some(offset + 1))
         }
+    }
+}
+
+fn display_jump_offset(offset: i16) -> String {
+    if offset >= 0 {
+        format!("+{:#04x}", offset)
+    } else {
+        format!("-{:#04x}", -offset)
+    }
+}
+
+fn calculate_jump_target(base: usize, offset: i16) -> usize {
+    if offset >= 0 {
+        base + offset as usize
+    } else {
+        base - (-offset as usize)
     }
 }

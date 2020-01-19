@@ -1,3 +1,5 @@
+use std::convert::TryInto;
+
 pub const OP_CONSTANT: u8 = 0;
 pub const OP_TRUE: u8 = OP_CONSTANT + 1;
 pub const OP_FALSE: u8 = OP_TRUE + 1;
@@ -49,8 +51,8 @@ pub enum OpCode {
     Negate,
 
     Print,
-    Jump(u16),
-    JumpIfFalse(u16),
+    Jump(i16),
+    JumpIfFalse(i16),
     Return,
 
     Unknown(u8),
@@ -116,7 +118,7 @@ macro_rules! jump_op {
             if $bytes.len() < 3 {
                 Err(DecodeError::UnexpectedEOF(1, "Missing jump offset".into()))
             } else {
-                let offset = ($bytes[1] as u16) << 8 | ($bytes[2] as u16);
+                let offset = i16::from_be_bytes((&$bytes[1..3]).try_into().unwrap());
                 Ok(($type(offset), 3))
             }
         }
@@ -189,8 +191,8 @@ impl OpCode {
             OpCode::Negate => vec![OP_NEGATE],
 
             OpCode::Print => vec![OP_PRINT],
-            OpCode::Jump(offset) => vec![OP_JUMP, (*offset >> 8) as u8, *offset as u8],
-            OpCode::JumpIfFalse(offset) => vec![OP_JUMP_IF_FALSE, (*offset >> 8) as u8, *offset as u8],
+            OpCode::Jump(offset) => { let mut b = vec![OP_JUMP]; b.extend_from_slice(&offset.to_be_bytes()[..]); b },
+            OpCode::JumpIfFalse(offset) => { let mut b = vec![OP_JUMP_IF_FALSE]; b.extend_from_slice(&offset.to_be_bytes()[..]); b },
             OpCode::Return => vec![OP_RETURN],
 
             OpCode::Unknown(val) => vec![*val],

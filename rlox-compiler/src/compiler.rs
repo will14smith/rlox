@@ -35,10 +35,16 @@ impl<'a> Compiler<'a> {
     }
 }
 
+type JumpOpFactory = Box<dyn Fn(i16) -> OpCode>;
+
 struct JumpPatchReference {
     chunk_ref: ChunkReference,
     offset: usize,
-    op_factory: Box<dyn Fn(u16) -> OpCode>,
+    op_factory: JumpOpFactory,
+}
+
+struct JumpLoopReference {
+    offset: usize,
 }
 
 impl<'a> Compiler<'a> {
@@ -118,7 +124,18 @@ impl<'a> Compiler<'a> {
                     self.chunk.add(OpCode::DefineGlobal(constant), 0);
                 }
             },
-            Stmt::While(_, _) => unimplemented!(),
+            Stmt::While(condition, body) => {
+                let loop_start = self.loop_start();
+                self.compile_expr(condition)?;
+                let exit_jump = self.jump(Box::new(OpCode::JumpIfFalse));
+
+                self.chunk.add(OpCode::Pop, 0); // TODO line number
+                self.compile_stmt(*body)?;
+                self.jump_loop(&loop_start, Box::new(OpCode::Jump));
+
+                self.resolve_jump(&exit_jump);
+                self.chunk.add(OpCode::Pop, 0); // TODO line number
+            },
         }
 
         Ok(())
@@ -234,7 +251,7 @@ impl<'a> Compiler<'a> {
         Ok(constant)
     }
 
-    fn jump(&mut self, op_factory: Box<dyn Fn(u16) -> OpCode>) -> JumpPatchReference {
+    fn jump(&mut self, op_factory: JumpOpFactory) -> JumpPatchReference {
         let offset = self.chunk.len();
         let chunk_ref = self.chunk.add(OpCode::Jump(0), 0); // TODO line number?
 
@@ -244,8 +261,16 @@ impl<'a> Compiler<'a> {
     }
     fn resolve_jump(&mut self, jump: &JumpPatchReference) {
         let offset = self.chunk.len() - jump.offset;
-        let op = (jump.op_factory)(offset as u16);
+        let op = (jump.op_factory)(offset as i16);
         self.chunk.patch(&jump.chunk_ref, op);
+    }
+    fn loop_start(&self) -> JumpLoopReference {
+        JumpLoopReference { offset: self.chunk.len() }
+    }
+    fn jump_loop(&mut self, jump: &JumpLoopReference, op_factory: JumpOpFactory) {
+        let offset = -((self.chunk.len() - jump.offset) as i16);
+
+        self.chunk.add(op_factory(offset), 0); // TODO line number?
     }
 
     fn resolve_local(&mut self, name: &String) -> Option<u8> {

@@ -177,11 +177,11 @@ impl VM {
                     println!("{}", self.pop()?);
                 },
                 OpCode::Jump(offset) => {
-                    next_ip = self.ip + offset as usize;
+                    next_ip = self.calculate_jump_target(self.ip, offset);
                 },
                 OpCode::JumpIfFalse(offset) => {
                     if !self.is_truthy(self.peek(0)?.as_ref()) {
-                        next_ip = self.ip + offset as usize;
+                        next_ip = self.calculate_jump_target(self.ip, offset);
                     }
                 },
                 OpCode::Return => {
@@ -220,6 +220,14 @@ impl VM {
         }
 
         Err(VMError::Runtime(self.chunk.line(self.ip), RuntimeError::ExpectedIdentifier))
+    }
+
+    fn calculate_jump_target(&self, base: usize, offset: i16) -> usize {
+        if offset >= 0 {
+            base + offset as usize
+        } else {
+            base - (-offset as usize)
+        }
     }
 }
 
